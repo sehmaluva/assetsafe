@@ -51,6 +51,7 @@ def seed_lookup_options_after_migrate(sender, app_config, **kwargs):
         # rely on a later common migrate / management command.
         logger.exception("Could not seed LookupOption system rows after migrate")
 
+
 MONITORED_MODELS = (
     Company,
     CompanyBranch,

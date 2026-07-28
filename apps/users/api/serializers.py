@@ -97,8 +97,12 @@ class ClientUserSerializer(serializers.ModelSerializer):
 
 class UserMiniSerializer(serializers.ModelSerializer):
     is_company_client = serializers.SerializerMethodField()
-    client_id = serializers.IntegerField(source="client.id", read_only=True, allow_null=True)
-    client_name = serializers.CharField(source="client.name", read_only=True, allow_null=True)
+    client_id = serializers.IntegerField(
+        source="client.id", read_only=True, allow_null=True
+    )
+    client_name = serializers.CharField(
+        source="client.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = User
@@ -234,6 +238,15 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
     def validate_position(self, value):
         return (value or "").strip()
+
+    def validate_position(self, value):
+        current = (getattr(self.instance, "position", None) or "").strip()
+        incoming = (value or "").strip()
+        if current and incoming != current:
+            raise serializers.ValidationError(
+                "Position can only be set when it is currently blank."
+            )
+        return incoming
 
 
 class PasswordChangeSerializer(serializers.Serializer):

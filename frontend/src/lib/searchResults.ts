@@ -74,7 +74,9 @@ export function mapBranchSearchResult(
 
   const name = branchIsDistinct
     ? `${companyName} — ${branchName}`
-    : companyName || branchName || (item.id != null ? `Branch #${item.id}` : 'External company');
+    : companyName ||
+      branchName ||
+      (item.id != null ? `Branch #${item.id}` : 'External company');
 
   return {
     id: item.id != null ? Number(item.id) : null,
