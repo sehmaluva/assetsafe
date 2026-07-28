@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 
-from apps.common.models.models import Country
+from apps.common.models.models import Country, PartyDataSource
 from apps.individuals.models.models import (
     Individual,
     EmploymentDetail,
@@ -227,6 +227,8 @@ class IndividualSerializer(serializers.ModelSerializer):
             "account_details",
             "is_verified",
             "is_active",
+            "source",
+            "external_reference",
             "employment_details",
             "next_of_kin",
             "documents",
@@ -431,6 +433,7 @@ class IndividualCreateSerializer(serializers.ModelSerializer):
         accounts_data = validated_data.pop("account_data", [])
 
         individual = getattr(self, "_existing_individual", None)
+        validated_data.setdefault("source", PartyDataSource.INTERNAL)
         if individual:
             for attr, value in validated_data.items():
                 setattr(individual, attr, value)
@@ -494,6 +497,8 @@ class IndividualSearchSerializer(serializers.ModelSerializer):
             "phone",
             "email",
             "is_active",
+            "source",
+            "external_reference",
         ]
 
 

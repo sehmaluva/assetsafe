@@ -97,8 +97,12 @@ class ClientUserSerializer(serializers.ModelSerializer):
 
 class UserMiniSerializer(serializers.ModelSerializer):
     is_company_client = serializers.SerializerMethodField()
-    client_id = serializers.IntegerField(source="client.id", read_only=True, allow_null=True)
-    client_name = serializers.CharField(source="client.name", read_only=True, allow_null=True)
+    client_id = serializers.IntegerField(
+        source="client.id", read_only=True, allow_null=True
+    )
+    client_name = serializers.CharField(
+        source="client.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = User
@@ -229,14 +233,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "position"]
+        fields = ["first_name", "last_name", "position"]
+        read_only_fields = ["email"]
 
-    def validate_email(self, value):
-        value = value.strip().lower()
-        qs = User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError("This email is already in use.")
-        return value
+    def validate_position(self, value):
+        return (value or "").strip()
 
     def validate_position(self, value):
         current = (getattr(self.instance, "position", None) or "").strip()

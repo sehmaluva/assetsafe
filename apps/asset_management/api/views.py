@@ -22,6 +22,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from apps.asset_management.models import AssetRegistration
 from apps.common.utils.helpers import extract_error_message
 from apps.common.api.views import BaseViewSet
+from apps.common.utils.caching import CacheService
+from apps.common.utils.registry_cache import ASSET_REGISTRY, invalidate_registry_caches
 from apps.users.services.audit_service import create_audit_log
 from .serializers import (
     AssetRegistrationSerializer,
@@ -145,6 +147,14 @@ class AssetRegistrationViewSet(BaseViewSet):
 
         return queryset
 
+    @CacheService.cached(tag_prefix="asset-registry:list")
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @CacheService.cached(tag_prefix="asset-registry:{pk}")
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
     # ------------------------------------------------------------------
     # Audit-logged CRUD hooks
     # ------------------------------------------------------------------
@@ -153,7 +163,10 @@ class AssetRegistrationViewSet(BaseViewSet):
 
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[ASSET_REGISTRY], record_pk=instance.pk
+            )
             return self._create_rendered_response(
                 serializer.data, status.HTTP_201_CREATED
             )
@@ -177,7 +190,10 @@ class AssetRegistrationViewSet(BaseViewSet):
                 instance, data=request.data, partial=partial
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[ASSET_REGISTRY], record_pk=instance.pk
+            )
             return self._create_rendered_response(serializer.data)
 
         except ValidationError as e:
@@ -195,6 +211,7 @@ class AssetRegistrationViewSet(BaseViewSet):
         resource_id = instance.pk
         registration_number = str(instance.registration_number)
         super().perform_destroy(instance)
+        invalidate_registry_caches(registries=[ASSET_REGISTRY], record_pk=resource_id)
         create_audit_log(
             request=self.request,
             action="asset_registration.delete",
@@ -208,6 +225,7 @@ class AssetRegistrationViewSet(BaseViewSet):
     # Custom actions
     # ------------------------------------------------------------------
 
+    @CacheService.cached(tag_prefix="asset-registry:stats")
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request: Request) -> Response:
         """

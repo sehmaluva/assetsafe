@@ -18,6 +18,7 @@ from apps.common.models import (
     LookupOption,
 )
 from apps.individuals.models import Individual
+from apps.companies.models.models import Company
 from apps.common.api.serializers import (
     CountrySerializer,
     CurrencySerializer,
@@ -483,6 +484,10 @@ class CommonChoicesView(APIView):
             "IdentificationType": [
                 {"value": value, "label": label}
                 for value, label in Individual.IDENTIFICATION_TYPES
+            ],
+            "LegalStatus": [
+                {"value": value, "label": label}
+                for value, label in Company.LEGAL_STATUS_CHOICES
             ],
         }
 

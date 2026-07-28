@@ -25,6 +25,11 @@ from apps.users.utils.permissions import HasRole, roles_allowed
 from apps.asset_management.api.views import StandardResultsSetPagination
 from apps.collateral.models.models import CollateralRegistration
 from apps.common.api.views import BaseViewSet
+from apps.common.utils.caching import CacheService
+from apps.common.utils.registry_cache import (
+    COLLATERAL_REGISTRY,
+    invalidate_registry_caches,
+)
 
 # from apps.users.services.audit_service import create_audit_log
 from .serializers import (
@@ -88,6 +93,7 @@ class CollateralRegistrationViewSet(BaseViewSet):
             "asset_registration_number",
             "chassis_number",
         ],
+        "financier": ["financier__name", "financier__external_client_id"],
     }
     DEFAULT_SEARCH_FIELDS: list[str] = [
         "agreement_number",
@@ -161,6 +167,14 @@ class CollateralRegistrationViewSet(BaseViewSet):
 
         return qs
 
+    @CacheService.cached(tag_prefix="collateral:list", vary_on_user=True)
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @CacheService.cached(tag_prefix="collateral:{pk}", vary_on_user=True)
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
     # ------------------------------------------------------------------
     # Audit-logged CRUD hooks
     # ------------------------------------------------------------------
@@ -168,7 +182,10 @@ class CollateralRegistrationViewSet(BaseViewSet):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[COLLATERAL_REGISTRY], record_pk=instance.pk
+            )
             return self._create_rendered_response(
                 serializer.data, status.HTTP_201_CREATED
             )
@@ -193,7 +210,10 @@ class CollateralRegistrationViewSet(BaseViewSet):
                 instance, data=request.data, partial=partial
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[COLLATERAL_REGISTRY], record_pk=instance.pk
+            )
             return self._create_rendered_response(serializer.data)
 
         except ValidationError as e:
@@ -210,7 +230,11 @@ class CollateralRegistrationViewSet(BaseViewSet):
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
+            record_pk = instance.pk
             self.perform_destroy(instance)
+            invalidate_registry_caches(
+                registries=[COLLATERAL_REGISTRY], record_pk=record_pk
+            )
             logger.info(
                 "Collateral registration with agreement number %s deleted by user %s",
                 instance.agreement_number,
@@ -263,7 +287,10 @@ class CollateralRegistrationViewSet(BaseViewSet):
                 partial=True,
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[COLLATERAL_REGISTRY], record_pk=instance.pk
+            )
             # create_audit_log.delay(
             #     request=request,
             #     action="collateral_registration.discharge",
@@ -279,6 +306,7 @@ class CollateralRegistrationViewSet(BaseViewSet):
                 {"error": extract_error_message(e)}, status.HTTP_400_BAD_REQUEST
             )
 
+    @CacheService.cached(tag_prefix="collateral:stats", vary_on_user=True)
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request: Request) -> Response:
         """

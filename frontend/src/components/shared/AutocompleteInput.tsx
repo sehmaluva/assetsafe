@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAutocomplete } from '@/hooks/useAutocomplete';
-import type { SearchOption } from '@/lib/searchResults';
+import { searchOptionKey, type SearchOption } from '@/lib/searchResults';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -15,6 +15,9 @@ interface Props {
   onChange?: (v: number) => void;
   onBlur?: () => void;
   fetchFn: (q: string) => Promise<SearchOption[]>;
+  onCreateNew?: (query: string) => void;
+  createLabel?: string;
+  resolveSelection?: (item: SearchOption) => Promise<number>;
 }
 
 export function AutocompleteInput({
@@ -29,9 +32,13 @@ export function AutocompleteInput({
   onChange,
   onBlur,
   fetchFn,
+  onCreateNew,
+  createLabel = 'Create',
+  resolveSelection,
 }: Props) {
   const [query, setQuery] = useState(displayLabel ?? '');
   const [showList, setShowList] = useState(false);
+  const [selecting, setSelecting] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -62,6 +69,29 @@ export function AutocompleteInput({
 
   const trimmed = query.trim();
   const showPanel = showList && trimmed.length > 0;
+  const isEmptyState =
+    searchEnabled &&
+    !isFetching &&
+    !selecting &&
+    !isError &&
+    items.length === 0;
+
+  const handleSelect = async (item: SearchOption) => {
+    setSelecting(true);
+    try {
+      const resolvedId = resolveSelection
+        ? await resolveSelection(item)
+        : item.id;
+      if (resolvedId == null) {
+        throw new Error('Invalid selection');
+      }
+      setQuery(item.name);
+      setShowList(false);
+      onChange?.(resolvedId);
+    } finally {
+      setSelecting(false);
+    }
+  };
 
   return (
     <div className="relative" ref={containerRef}>
@@ -93,13 +123,22 @@ export function AutocompleteInput({
       />
 
       {showPanel ? (
-        <div className="absolute z-[60] mt-1 max-h-48 w-full overflow-auto rounded border border-slate-300 bg-white shadow-md">
+        <div
+          className={cn(
+            'absolute z-[60] mt-1 overflow-hidden rounded border border-slate-300 bg-white shadow-md',
+            isEmptyState
+              ? 'w-max min-w-[13rem] max-w-[17rem]'
+              : 'max-h-48 w-full overflow-auto',
+          )}
+        >
           {!searchEnabled ? (
             <div className="p-2 text-sm text-slate-500">
               Type at least {minChars} characters to search
             </div>
-          ) : isFetching ? (
-            <div className="p-2 text-sm text-slate-500">Searching...</div>
+          ) : isFetching || selecting ? (
+            <div className="p-2 text-sm text-slate-500">
+              {selecting ? 'Importing...' : 'Searching...'}
+            </div>
           ) : isError ? (
             <div className="p-2 text-sm text-red-500">
               Search failed. Please try again.
@@ -107,15 +146,11 @@ export function AutocompleteInput({
           ) : items.length > 0 ? (
             items.map((item) => (
               <button
-                key={item.id}
+                key={searchOptionKey(item)}
                 type="button"
                 className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setQuery(item.name);
-                  setShowList(false);
-                  onChange?.(item.id);
-                }}
+                onClick={() => void handleSelect(item)}
               >
                 <div className="font-medium">{item.name}</div>
                 {item.subtitle ? (
@@ -124,7 +159,22 @@ export function AutocompleteInput({
               </button>
             ))
           ) : (
-            <div className="p-2 text-sm text-slate-500">No results found</div>
+            <div className="px-3 py-3">
+              <p className="text-sm text-slate-600">No results found</p>
+              {onCreateNew ? (
+                <button
+                  type="button"
+                  className="mt-2.5 w-full rounded bg-[#0f7d8e] px-3 py-2 text-xs font-semibold text-white hover:bg-[#0d6e7e]"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setShowList(false);
+                    onCreateNew(trimmed);
+                  }}
+                >
+                  {createLabel}
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
       ) : null}

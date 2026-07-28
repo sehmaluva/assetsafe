@@ -57,7 +57,7 @@ export default function UsersManagementPage() {
     resetCreateForm();
   };
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ['managed-users', page, appliedSearch],
     queryFn: () =>
       usersApi.list({
@@ -67,6 +67,7 @@ export default function UsersManagementPage() {
       }),
   });
 
+  const loading = isLoading || isFetching;
   const totalRecords = data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
   const activePage = Math.min(page, totalPages);
@@ -143,11 +144,9 @@ export default function UsersManagementPage() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-[#8f8f8f]">
         <div className="min-h-0 flex-1 overflow-auto">
-          {isLoading ? (
-            <TableSkeleton cols={6} rows={8} />
-          ) : isError ? (
+          {isError && !loading ? (
             <EmptyState message="Could not load users." />
-          ) : rows.length === 0 ? (
+          ) : !loading && rows.length === 0 ? (
             <EmptyState message="No users found." />
           ) : (
             <table className="w-full min-w-[700px] border-collapse text-left text-sm">
@@ -162,18 +161,22 @@ export default function UsersManagementPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-200">
-                    <td className="px-3 py-2 font-medium">{row.username}</td>
-                    <td className="px-3 py-2">{row.email}</td>
-                    <td className="px-3 py-2">{row.user_type}</td>
-                    <td className="px-3 py-2">{row.is_staff ? 'Yes' : 'No'}</td>
-                    <td className="px-3 py-2">
-                      {row.is_superuser ? 'Yes' : 'No'}
-                    </td>
-                    <td className="px-3 py-2">{formatDate(row.date_joined)}</td>
-                  </tr>
-                ))}
+                {loading ? (
+                  <TableSkeleton cols={6} rows={8} />
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.id} className="border-t border-slate-200">
+                      <td className="px-3 py-2 font-medium">{row.username}</td>
+                      <td className="px-3 py-2">{row.email}</td>
+                      <td className="px-3 py-2">{row.user_type}</td>
+                      <td className="px-3 py-2">{row.is_staff ? 'Yes' : 'No'}</td>
+                      <td className="px-3 py-2">
+                        {row.is_superuser ? 'Yes' : 'No'}
+                      </td>
+                      <td className="px-3 py-2">{formatDate(row.date_joined)}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}

@@ -46,6 +46,7 @@ dependencies = [
     { name = "pygithub" },
     { name = "python-dotenv" },
     { name = "redis" },
+    { name = "requests" },
     { name = "whitenoise" },
 ]
 
@@ -76,6 +77,7 @@ requires-dist = [
     { name = "pygithub", specifier = ">=2.9.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "redis", specifier = ">=6.4.0" },
+    { name = "requests", specifier = ">=2.32.0" },
     { name = "whitenoise", specifier = ">=6.12.0" },
 ]
 

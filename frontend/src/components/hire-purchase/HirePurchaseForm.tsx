@@ -805,6 +805,23 @@ export function HirePurchaseForm({
                         ? companiesApi.searchBranches(q)
                         : individualsApi.searchIndividuals(q)
                     }
+                    resolveSelection={(item) =>
+                      watch('purchaser_type') === 'company'
+                        ? companiesApi.resolveBranchSelection(item)
+                        : individualsApi.resolveIndividualSelection(item)
+                    }
+                    createLabel={
+                      watch('purchaser_type') === 'company'
+                        ? 'Create company'
+                        : 'Create individual'
+                    }
+                    onCreateNew={() => {
+                      if (watch('purchaser_type') === 'company') {
+                        setAddCompanyOpen(true);
+                      } else {
+                        setAddIndividualOpen(true);
+                      }
+                    }}
                     value={field.value}
                     onBlur={field.onBlur}
                     error={errors.purchaser_id?.message}

@@ -266,6 +266,23 @@ export function AssetRegistryForm({
                       ? companiesApi.searchBranches(q)
                       : individualsApi.searchIndividuals(q)
                   }
+                  resolveSelection={(item) =>
+                    watch('owner_type') === 'company'
+                      ? companiesApi.resolveBranchSelection(item)
+                      : individualsApi.resolveIndividualSelection(item)
+                  }
+                  createLabel={
+                    watch('owner_type') === 'company'
+                      ? 'Create company'
+                      : 'Create individual'
+                  }
+                  onCreateNew={() => {
+                    if (watch('owner_type') === 'company') {
+                      setAddCompanyOpen(true);
+                    } else {
+                      setAddIndividualOpen(true);
+                    }
+                  }}
                   error={errors.owner_id?.message}
                   value={field.value}
                   onBlur={field.onBlur}
@@ -499,6 +516,23 @@ export function AssetRegistryForm({
                           ? companiesApi.searchBranches(q)
                           : individualsApi.searchIndividuals(q)
                       }
+                      resolveSelection={(item) =>
+                        currentCustodianType === 'company'
+                          ? companiesApi.resolveBranchSelection(item)
+                          : individualsApi.resolveIndividualSelection(item)
+                      }
+                      createLabel={
+                        currentCustodianType === 'company'
+                          ? 'Create company'
+                          : 'Create individual'
+                      }
+                      onCreateNew={() => {
+                        if (currentCustodianType === 'company') {
+                          setAddCustodianCompanyOpen(true);
+                        } else {
+                          setAddCustodianIndividualOpen(true);
+                        }
+                      }}
                       error={errors.custodian_id?.message}
                       value={field.value}
                       onBlur={field.onBlur}

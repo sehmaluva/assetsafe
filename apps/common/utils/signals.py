@@ -3,6 +3,13 @@ from django.db.models.signals import post_save, post_delete, m2m_changed, post_m
 from django.dispatch import receiver
 from django.contrib.contenttypes.models import ContentType
 from apps.common.utils.caching import CacheService
+from apps.common.utils.registry_cache import (
+    ASSET_REGISTRY,
+    COLLATERAL_REGISTRY,
+    HP_COLLATERAL_REGISTRIES,
+    HIRE_PURCHASE_REGISTRY,
+    invalidate_registry_caches,
+)
 from apps.companies.models.models import Company, CompanyBranch
 from apps.common.models.models import Country, Province, City, Suburb, Address
 from apps.individuals.models.models import (
@@ -11,11 +18,18 @@ from apps.individuals.models.models import (
     NextOfKin,
     EmploymentDetail,
 )
+from apps.asset_management.models.models import AssetRegistration
+from apps.hire_purchase.models.models import HirePurchaseRegistration
+from apps.collateral.models.models import CollateralRegistration
+from apps.clients.models.models import Client
+from django.contrib.auth import get_user_model
 import logging
 
 # from apps.subscriptions.models.models import Services, Subscription, SubscriptionPeriod
 
 logger = logging.getLogger("cache")
+
+User = get_user_model()
 
 
 @receiver(post_migrate)
@@ -37,6 +51,7 @@ def seed_lookup_options_after_migrate(sender, app_config, **kwargs):
         # rely on a later common migrate / management command.
         logger.exception("Could not seed LookupOption system rows after migrate")
 
+
 MONITORED_MODELS = (
     Company,
     CompanyBranch,
@@ -52,6 +67,11 @@ MONITORED_MODELS = (
     # SubscriptionPeriod,
     # Services,
     # Subscription,
+    AssetRegistration,
+    HirePurchaseRegistration,
+    CollateralRegistration,
+    Client,
+    User,
 )
 
 
@@ -124,6 +144,7 @@ def invalidate_company_caches(instance):
 
     CacheService.invalidate_tag("choices:location")
     CacheService.invalidate_tag("choices:company")
+    invalidate_registry_caches()
 
 
 def invalidate_individual_caches(instance):
@@ -145,6 +166,19 @@ def invalidate_individual_caches(instance):
         CacheService.invalidate_tag(f"individual:{instance.pk}:full-details")
 
     CacheService.invalidate_tag("choices:individual")
+    invalidate_registry_caches()
+
+
+def invalidate_client_caches(instance):
+    """Financier label changes affect HP and Collateral list/detail payloads."""
+    _ = instance
+    invalidate_registry_caches(registries=HP_COLLATERAL_REGISTRIES)
+
+
+def invalidate_user_caches(instance):
+    """User name/position changes affect HP and Collateral data-source fields."""
+    _ = instance
+    invalidate_registry_caches(registries=HP_COLLATERAL_REGISTRIES)
 
 
 def invalidate_address_caches(instance):
@@ -204,8 +238,24 @@ def invalidate_model_cache(sender, instance, **kwargs):
             invalidate_individual_caches(instance)
         elif sender == Address:
             invalidate_address_caches(instance)
-        elif sender in (Subscription, Services, SubscriptionPeriod):
-            invalidate_subscription_caches(instance)
+        elif sender == AssetRegistration:
+            invalidate_registry_caches(
+                registries=[ASSET_REGISTRY], record_pk=instance.pk
+            )
+        elif sender == HirePurchaseRegistration:
+            invalidate_registry_caches(
+                registries=[HIRE_PURCHASE_REGISTRY], record_pk=instance.pk
+            )
+        elif sender == CollateralRegistration:
+            invalidate_registry_caches(
+                registries=[COLLATERAL_REGISTRY], record_pk=instance.pk
+            )
+        elif sender == Client:
+            invalidate_client_caches(instance)
+        elif sender == User:
+            invalidate_user_caches(instance)
+        # elif sender in (Subscription, Services, SubscriptionPeriod):
+        #     invalidate_subscription_caches(instance)
 
         logger.debug(
             f"Successfully invalidated caches for {sender.__name__} ID {getattr(instance, 'pk', 'new')}"

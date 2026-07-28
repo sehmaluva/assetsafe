@@ -89,6 +89,12 @@ def getenv_list(key: str, default: str = "") -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+# External party registry (optional — search fallback when local records are missing)
+EXTERNAL_REGISTRY_BASE_URL = os.getenv("EXTERNAL_REGISTRY_BASE_URL", "")
+EXTERNAL_REGISTRY_API_KEY = os.getenv("EXTERNAL_REGISTRY_API_KEY", "")
+EXTERNAL_REGISTRY_TIMEOUT = getenv_int("EXTERNAL_REGISTRY_TIMEOUT", 10)
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG") == "True"
 

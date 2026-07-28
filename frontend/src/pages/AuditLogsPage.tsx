@@ -13,7 +13,7 @@ export default function AuditLogsPage() {
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ['audit-logs', page, appliedSearch],
     queryFn: () =>
       auditApi.list({
@@ -23,6 +23,7 @@ export default function AuditLogsPage() {
       }),
   });
 
+  const loading = isLoading || isFetching;
   const totalRecords = data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
   const activePage = Math.min(page, totalPages);
@@ -61,11 +62,9 @@ export default function AuditLogsPage() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-[#8f8f8f]">
         <div className="min-h-0 flex-1 overflow-auto">
-          {isLoading ? (
-            <TableSkeleton cols={6} rows={10} />
-          ) : isError ? (
+          {isError && !loading ? (
             <EmptyState message="Could not load audit logs." />
-          ) : rows.length === 0 ? (
+          ) : !loading && rows.length === 0 ? (
             <EmptyState message="No audit entries found." />
           ) : (
             <table className="w-full min-w-[800px] border-collapse text-left text-sm">
@@ -76,35 +75,35 @@ export default function AuditLogsPage() {
                   <th className="px-3 py-2">Action</th>
                   <th className="px-3 py-2">Resource</th>
                   <th className="px-3 py-2">Success</th>
-                  <th className="px-3 py-2">IP</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id} className="border-t border-slate-200">
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {formatDate(row.timestamp)}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.created_by_username ?? '—'}
-                    </td>
-                    <td className="px-3 py-2 font-medium">{row.action}</td>
-                    <td className="px-3 py-2">
-                      {row.resource_type}
-                      {row.resource_id != null ? ` #${row.resource_id}` : ''}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.success ? (
-                        <span className="text-green-700">Yes</span>
-                      ) : (
-                        <span className="text-red-700">No</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {row.ip_address ?? '—'}
-                    </td>
-                  </tr>
-                ))}
+                {loading ? (
+                  <TableSkeleton cols={5} rows={10} />
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.id} className="border-t border-slate-200">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {formatDate(row.timestamp)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.created_by_username ?? '—'}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{row.action}</td>
+                      <td className="px-3 py-2">
+                        {row.resource_type}
+                        {row.resource_id != null ? ` #${row.resource_id}` : ''}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.success ? (
+                          <span className="text-green-700">Yes</span>
+                        ) : (
+                          <span className="text-red-700">No</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}

@@ -23,6 +23,11 @@ export interface IndividualCreatePayload {
   }[];
 }
 
+function unwrapRecord(data: unknown): Record<string, unknown> {
+  const body = (data as { data?: Record<string, unknown> })?.data ?? data;
+  return body as Record<string, unknown>;
+}
+
 export const individualsApi = {
   /** GET /api/individuals/search/?search=... */
   searchIndividuals: async (query: string): Promise<SearchOption[]> => {
@@ -38,6 +43,32 @@ export const individualsApi = {
     );
   },
 
+  importExternal: async (
+    externalReference: string,
+  ): Promise<{ id: number; name: string }> => {
+    const { data } = await axiosInstance.post<unknown>(
+      '/individuals/import-external/',
+      { external_reference: externalReference },
+    );
+    const record = unwrapRecord(data);
+    const mapped = mapIndividualSearchResult(record);
+    return {
+      id: mapped.id ?? Number(record.id),
+      name: mapped.name,
+    };
+  },
+
+  resolveIndividualSelection: async (item: SearchOption): Promise<number> => {
+    if (item.source === 'external' && item.external_reference) {
+      const result = await individualsApi.importExternal(item.external_reference);
+      return result.id;
+    }
+    if (item.id == null) {
+      throw new Error('Invalid individual selection');
+    }
+    return item.id;
+  },
+
   createIndividual: async (
     payload: IndividualCreatePayload,
   ): Promise<{ id: number; name: string }> => {
@@ -45,8 +76,7 @@ export const individualsApi = {
       '/individuals/',
       payload,
     );
-    const body = (data as { data?: Record<string, unknown> })?.data ?? data;
-    const record = body as Record<string, unknown>;
+    const record = unwrapRecord(data);
     const id = Number(record.id);
     const name =
       (typeof record.name === 'string' && record.name) ||

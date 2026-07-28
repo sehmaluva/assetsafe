@@ -15,7 +15,7 @@ import { applyApiValidationErrors } from '@/lib/formErrors';
 const profileSchema = z.object({
   first_name: z.string().max(150),
   last_name: z.string().max(150),
-  email: z.string().email('Enter a valid email'),
+  position: z.string().max(100).optional(),
 });
 
 const passwordSchema = z
@@ -65,7 +65,7 @@ export default function AccountSettingsPage() {
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { first_name: '', last_name: '', email: '' },
+    defaultValues: { first_name: '', last_name: '', position: '' },
   });
 
   const passwordForm = useForm<PasswordForm>({
@@ -77,7 +77,7 @@ export default function AccountSettingsPage() {
       profileForm.reset({
         first_name: profile.first_name ?? '',
         last_name: profile.last_name ?? '',
-        email: profile.email ?? '',
+        position: profile.position ?? '',
       });
     }
   }, [profile, profileForm]);
@@ -88,7 +88,11 @@ export default function AccountSettingsPage() {
   const onProfileSubmit = async (values: ProfileForm) => {
     setSavingProfile(true);
     try {
-      const updated = await authApi.updateProfile(values);
+      const updated = await authApi.updateProfile({
+        first_name: values.first_name,
+        last_name: values.last_name,
+        position: values.position?.trim() ?? '',
+      });
       setUser(normalizeAuthUser(updated as unknown as Record<string, unknown>));
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
       toast.success('Profile updated');
@@ -179,13 +183,25 @@ export default function AccountSettingsPage() {
           <div>
             <label className="text-sm font-semibold">Email</label>
             <input
-              {...profileForm.register('email')}
               type="email"
+              value={profile?.email ?? ''}
+              disabled
+              className="mt-1 w-full cursor-not-allowed rounded border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Email changes are disabled until email verification is available.
+            </p>
+          </div>
+          <div>
+            <label className="text-sm font-semibold">Position</label>
+            <input
+              {...profileForm.register('position')}
+              placeholder="e.g. Asset Manager"
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
             />
-            {profileForm.formState.errors.email ? (
+            {profileForm.formState.errors.position ? (
               <p className="mt-1 text-xs text-red-600">
-                {profileForm.formState.errors.email.message}
+                {profileForm.formState.errors.position.message}
               </p>
             ) : null}
           </div>

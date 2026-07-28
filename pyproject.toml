@@ -22,6 +22,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "pygithub>=2.9.0",
     "python-dotenv>=1.2.2",
+    "requests>=2.32.0",
     "redis>=6.4.0",
     "whitenoise>=6.12.0",
 ]

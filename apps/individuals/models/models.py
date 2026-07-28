@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from apps.common.models.models import Address, Document, Note
 from django.contrib.contenttypes.fields import GenericRelation
 from apps.common.models.base_models import BaseModel, BaseModelWithUser
+from apps.common.models.models import PartyDataSource
 import re
 
 
@@ -44,6 +45,21 @@ class Individual(BaseModelWithUser):
     is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
+    source = models.CharField(
+        max_length=20,
+        choices=PartyDataSource.choices,
+        default=PartyDataSource.INTERNAL,
+        db_default=PartyDataSource.INTERNAL,
+        help_text=_("Whether this record was created locally or imported from an external registry."),
+    )
+    external_reference = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        unique=True,
+        db_index=True,
+        help_text=_("Identifier of this record in the external registry, when source is external."),
+    )
     # Relationships
     addresses = GenericRelation(Address)
     documents = GenericRelation(Document)
