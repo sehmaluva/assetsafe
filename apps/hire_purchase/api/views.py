@@ -20,6 +20,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from apps.asset_management.api.views import StandardResultsSetPagination
 from apps.common.api.views import BaseViewSet
+from apps.common.utils.caching import CacheService
+from apps.common.utils.registry_cache import (
+    HIRE_PURCHASE_REGISTRY,
+    invalidate_registry_caches,
+)
 from apps.common.utils.helpers import (
     extract_error_message,
     scope_registry_to_client_portfolio,
@@ -153,6 +158,14 @@ class HirePurchaseRegistrationViewSet(BaseViewSet):
 
         return qs
 
+    @CacheService.cached(tag_prefix="hire-purchase:list", vary_on_user=True)
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @CacheService.cached(tag_prefix="hire-purchase:{pk}", vary_on_user=True)
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
     # ------------------------------------------------------------------
     # Audit-logged CRUD hooks
     # ------------------------------------------------------------------
@@ -161,7 +174,10 @@ class HirePurchaseRegistrationViewSet(BaseViewSet):
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[HIRE_PURCHASE_REGISTRY], record_pk=instance.pk
+            )
             return self._create_rendered_response(
                 serializer.data, status.HTTP_201_CREATED
             )
@@ -186,7 +202,10 @@ class HirePurchaseRegistrationViewSet(BaseViewSet):
                 instance, data=request.data, partial=partial
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save()
+            instance = serializer.save()
+            invalidate_registry_caches(
+                registries=[HIRE_PURCHASE_REGISTRY], record_pk=instance.pk
+            )
             return self._create_rendered_response(serializer.data)
 
         except ValidationError as e:
@@ -203,7 +222,11 @@ class HirePurchaseRegistrationViewSet(BaseViewSet):
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
+            record_pk = instance.pk
             self.perform_destroy(instance)
+            invalidate_registry_caches(
+                registries=[HIRE_PURCHASE_REGISTRY], record_pk=record_pk
+            )
             logger.info(
                 f"Hire purchase registration with agreement number {instance.agreement_number} deleted by user {request.user}"
             )
@@ -240,7 +263,10 @@ class HirePurchaseRegistrationViewSet(BaseViewSet):
             partial=True,
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        instance = serializer.save()
+        invalidate_registry_caches(
+            registries=[HIRE_PURCHASE_REGISTRY], record_pk=instance.pk
+        )
         create_audit_log(
             request=request,
             action="hire_purchase_registration.confirm_closure",
@@ -251,6 +277,7 @@ class HirePurchaseRegistrationViewSet(BaseViewSet):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @CacheService.cached(tag_prefix="hire-purchase:stats", vary_on_user=True)
     @action(detail=False, methods=["get"], url_path="stats")
     def stats(self, request: Request) -> Response:
         """

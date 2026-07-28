@@ -68,7 +68,7 @@ class CacheService:
             return 0
         
     @classmethod
-    def cached(cls, tag_prefix: str, timeout: int = None):
+    def cached(cls, tag_prefix: str, timeout: int = None, vary_on_user: bool = False):
         """
         A powerful decorator for caching view functions and methods.
 
@@ -76,6 +76,8 @@ class CacheService:
             tag_prefix (str): A prefix for the cache tag. Can contain placeholders
             like '{pk}' which will be formatted with view kwargs.
             timeout (int): The cache timeout in seconds. Defaults to DEFAULT_TIMEOUT.
+            vary_on_user (bool): When True, include authenticated user id and
+                client id in the cache key so client-scoped registries cannot leak.
         """
         def decorator(view_func):
             @wraps(view_func)
@@ -84,7 +86,15 @@ class CacheService:
                     formatted_tag = tag_prefix.format(**kwargs)
                     version = cls._get_version(formatted_tag)
                     path = request.get_full_path()
-                    base_key_str = f"view={view_instance.__class__.__name__}.{view_func.__name__},path={path}"
+                    base_key_str = (
+                        f"view={view_instance.__class__.__name__}."
+                        f"{view_func.__name__},path={path}"
+                    )
+                    if vary_on_user:
+                        user = getattr(request, "user", None)
+                        user_id = getattr(user, "pk", None) if user else None
+                        client_id = getattr(user, "client_id", None) if user else None
+                        base_key_str += f",user={user_id},client={client_id}"
                     base_key = md5(force_bytes(base_key_str)).hexdigest()
                     cache_key = cls._generate_cache_key(base_key, version)
                     

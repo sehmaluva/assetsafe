@@ -16,10 +16,17 @@ from apps.individuals.models import Individual
 from apps.common.api.views import BaseViewSet
 from apps.common.utils import CacheService, extract_error_message
 from apps.individuals.services.tasks import process_individuals_csv
+from apps.common.services.external_registry import ExternalRegistryClient
+from apps.individuals.services.external_import import import_external_individual
+from rest_framework import serializers
 
 import logging
 
 logger = logging.getLogger("individuals")
+
+
+class ExternalImportSerializer(serializers.Serializer):
+    external_reference = serializers.CharField(required=True)
 
 
 class IndividualViewSet(BaseViewSet):
@@ -187,8 +194,42 @@ class IndividualViewSet(BaseViewSet):
             return self._create_rendered_response([], status.HTTP_200_OK)
 
         queryset = self.filter_queryset(self.get_queryset())[:25]
-        serializer = self.get_serializer(queryset, many=True)
-        return self._create_rendered_response(serializer.data, status.HTTP_200_OK)
+        if queryset.exists():
+            serializer = self.get_serializer(queryset, many=True)
+            return self._create_rendered_response(serializer.data, status.HTTP_200_OK)
+
+        client = ExternalRegistryClient()
+        if client.is_configured:
+            external_results = client.search_individuals(search_key)[:25]
+            return self._create_rendered_response(
+                external_results, status.HTTP_200_OK
+            )
+
+        return self._create_rendered_response([], status.HTTP_200_OK)
+
+    @action(detail=False, methods=["post"], url_path="import-external")
+    def import_external(self, request, *args, **kwargs):
+        serializer = ExternalImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            individual = import_external_individual(
+                serializer.validated_data["external_reference"],
+                created_by=request.user,
+            )
+            return self._create_rendered_response(
+                IndividualSearchSerializer(individual).data,
+                status.HTTP_201_CREATED,
+            )
+        except ValueError as exc:
+            return self._create_rendered_response(
+                {"error": str(exc)}, status.HTTP_404_NOT_FOUND
+            )
+        except Exception as exc:
+            logger.error("Error importing external individual: %s", exc)
+            return self._create_rendered_response(
+                {"error": "Something went wrong"},
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=["PUT", "PATCH"], url_path="verify")
     def verify_individual(self, request, pk=None):

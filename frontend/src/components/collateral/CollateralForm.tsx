@@ -783,6 +783,23 @@ export function CollateralForm({
                         ? companiesApi.searchBranches(q)
                         : individualsApi.searchIndividuals(q)
                     }
+                    resolveSelection={(item) =>
+                      watch('debtor_type') === 'company'
+                        ? companiesApi.resolveBranchSelection(item)
+                        : individualsApi.resolveIndividualSelection(item)
+                    }
+                    createLabel={
+                      watch('debtor_type') === 'company'
+                        ? 'Create company'
+                        : 'Create individual'
+                    }
+                    onCreateNew={() => {
+                      if (watch('debtor_type') === 'company') {
+                        setAddCompanyOpen(true);
+                      } else {
+                        setAddIndividualOpen(true);
+                      }
+                    }}
                     error={errors.debtor_id?.message}
                     value={field.value}
                     onBlur={field.onBlur}

@@ -1,8 +1,10 @@
 /** Normalized option for owner/debtor/financier autocomplete fields. */
 export interface SearchOption {
-  id: number;
+  id: number | null;
   name: string;
   subtitle?: string;
+  source?: 'internal' | 'external';
+  external_reference?: string | null;
 }
 
 export function unwrapSearchList(data: unknown): unknown[] {
@@ -31,15 +33,17 @@ export function mapIndividualSearchResult(
   const name =
     (typeof item.name === 'string' && item.name) ||
     `${first} ${last}`.trim() ||
-    `Individual #${item.id}`;
+    (item.id != null ? `Individual #${item.id}` : 'External individual');
 
   return {
-    id: Number(item.id),
+    id: item.id != null ? Number(item.id) : null,
     name,
     subtitle:
       (item.identification_number as string | undefined) ??
       (item.phone as string | undefined) ??
       (item.email as string | undefined),
+    source: (item.source as SearchOption['source']) ?? 'internal',
+    external_reference: (item.external_reference as string | null) ?? null,
   };
 }
 
@@ -70,14 +74,17 @@ export function mapBranchSearchResult(
 
   const name = branchIsDistinct
     ? `${companyName} — ${branchName}`
-    : companyName || branchName || `Branch #${item.id}`;
+    : companyName || branchName || (item.id != null ? `Branch #${item.id}` : 'External company');
 
   return {
-    id: Number(item.id),
-    // Match Individual list labels: "Name (ID/Reg)".
-    // Reg lives in `name` only (not also as subtitle) to avoid double display.
+    id: item.id != null ? Number(item.id) : null,
     name: regNo ? `${name} (${regNo})` : name,
-    subtitle: undefined,
+    subtitle: item.source === 'external' ? 'External registry' : undefined,
+    source: (item.source as SearchOption['source']) ?? 'internal',
+    external_reference:
+      (item.external_reference as string | null) ??
+      (company?.external_reference as string | null) ??
+      null,
   };
 }
 
@@ -90,5 +97,13 @@ export function mapClientSearchResult(
     subtitle: item.external_client_id
       ? String(item.external_client_id)
       : undefined,
+    source: 'internal',
   };
+}
+
+export function searchOptionKey(item: SearchOption): string {
+  if (item.source === 'external' && item.external_reference) {
+    return `external:${item.external_reference}`;
+  }
+  return `internal:${item.id ?? item.name}`;
 }

@@ -7,7 +7,7 @@ from apps.companies.models.models import (
     ContactPerson,
     CompanyProfile,
 )
-from apps.common.models.models import Address, Document, Note
+from apps.common.models.models import Address, Document, Note, PartyDataSource
 from apps.common.api.serializers import (
     AddressSerializer,
     DocumentSerializer,
@@ -228,6 +228,8 @@ class CompanyMinimalSerializer(serializers.ModelSerializer):
             "legal_status",
             "legal_status_display",
             "is_verified",
+            "source",
+            "external_reference",
         ]
 
 
@@ -254,6 +256,8 @@ class CompanyDetailSerializer(serializers.ModelSerializer):
             "industry",
             "is_verified",
             "is_active",
+            "source",
+            "external_reference",
             "addresses",
             "branches",
             "profile",
@@ -314,6 +318,7 @@ class CompanyCreateSerializer(serializers.ModelSerializer):
         documents_data = validated_data.pop("documents", [])
         notes_data = validated_data.pop("notes", [])
         user = self.context.get("user")
+        validated_data.setdefault("source", PartyDataSource.INTERNAL)
         company = Company.objects.create(**validated_data)
         company_content_type = ContentType.objects.get_for_model(Company)
 

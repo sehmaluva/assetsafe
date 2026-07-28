@@ -6,6 +6,9 @@ import { individualsApi } from '@/api/individualsApi';
 import { companiesApi } from '@/api/companiesApi';
 import AutocompleteInput from '@/components/shared/AutocompleteInput';
 import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/shared/Modal';
+import { IndividualCreateForm } from '@/components/individuals/IndividualCreateForm';
+import { CompanyCreateForm } from '@/components/companies/CompanyCreateForm';
 
 interface ClientCreateFormProps {
   onSuccess: (result: { id: number; name: string }) => void;
@@ -23,6 +26,8 @@ export function ClientCreateForm({
   );
   const [entityId, setEntityId] = useState<number>(0);
   const [entityError, setEntityError] = useState('');
+  const [addIndividualOpen, setAddIndividualOpen] = useState(false);
+  const [addCompanyOpen, setAddCompanyOpen] = useState(false);
 
   useEffect(() => {
     setEntityType(initialEntityType);
@@ -67,57 +72,111 @@ export function ClientCreateForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4" noValidate>
-      <div>
-        <label className="text-xs font-medium text-slate-600">Client Type</label>
-        <select
-          value={entityType}
-          onChange={(e) => {
-            setEntityType(e.target.value as 'individual' | 'company');
-            setEntityId(0);
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4 p-4" noValidate>
+        <div>
+          <label className="text-xs font-medium text-slate-600">
+            Client Type
+          </label>
+          <select
+            value={entityType}
+            onChange={(e) => {
+              setEntityType(e.target.value as 'individual' | 'company');
+              setEntityId(0);
+              setEntityError('');
+            }}
+            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+          >
+            <option value="company">Company</option>
+            <option value="individual">Individual</option>
+          </select>
+        </div>
+
+        <AutocompleteInput
+          label={entityType === 'individual' ? 'Individual' : 'Company Branch'}
+          placeholder={
+            entityType === 'individual'
+              ? 'Search by name or national ID...'
+              : 'Search by name or registration number...'
+          }
+          queryKey={`client-create-${entityType}`}
+          fetchFn={(q) =>
+            entityType === 'company'
+              ? companiesApi.searchBranches(q)
+              : individualsApi.searchIndividuals(q)
+          }
+          resolveSelection={(item) =>
+            entityType === 'company'
+              ? companiesApi.resolveBranchSelection(item)
+              : individualsApi.resolveIndividualSelection(item)
+          }
+          createLabel={
+            entityType === 'company' ? 'Create company' : 'Create individual'
+          }
+          onCreateNew={() => {
+            if (entityType === 'company') {
+              setAddCompanyOpen(true);
+            } else {
+              setAddIndividualOpen(true);
+            }
+          }}
+          error={entityError}
+          value={entityId || undefined}
+          onChange={(v) => {
+            setEntityId(Number(v));
             setEntityError('');
           }}
-          className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-        >
-          <option value="company">Company</option>
-          <option value="individual">Individual</option>
-        </select>
-      </div>
+        />
 
-      <AutocompleteInput
-        label={entityType === 'individual' ? 'Individual' : 'Company Branch'}
-        placeholder={
-          entityType === 'individual'
-            ? 'Search by name or national ID...'
-            : 'Search by name or registration number...'
-        }
-        queryKey={`client-create-${entityType}`}
-        fetchFn={(q) =>
-          entityType === 'company'
-            ? companiesApi.searchBranches(q)
-            : individualsApi.searchIndividuals(q)
-        }
-        error={entityError}
-        value={entityId || undefined}
-        onChange={(v) => {
-          setEntityId(Number(v));
-          setEntityError('');
-        }}
-      />
+        <p className="text-xs text-slate-500">
+          Creates a client record linked to the selected{' '}
+          {entityType === 'individual' ? 'individual' : 'company branch'}.
+        </p>
 
-      <p className="text-xs text-slate-500">
-        Creates a client record linked to the selected{' '}
-        {entityType === 'individual' ? 'individual' : 'company branch'}.
-      </p>
+        <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={isPending}>
+            Create Client
+          </Button>
+        </div>
+      </form>
 
-      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" loading={isPending}>
-          Create Client
-        </Button>
-      </div>
-    </form>
+      <Modal
+        open={addIndividualOpen}
+        onClose={() => setAddIndividualOpen(false)}
+        title="Add Individual"
+        size="lg"
+      >
+        <IndividualCreateForm
+          onCancel={() => setAddIndividualOpen(false)}
+          onSuccess={({ id }) => {
+            setEntityType('individual');
+            setEntityId(id);
+            setEntityError('');
+            setAddIndividualOpen(false);
+          }}
+        />
+      </Modal>
+
+      <Modal
+        open={addCompanyOpen}
+        onClose={() => setAddCompanyOpen(false)}
+        title="Add Company"
+        size="lg"
+        disableBackdropClose
+      >
+        <CompanyCreateForm
+          onCancel={() => setAddCompanyOpen(false)}
+          onSuccess={({ id }) => {
+            setEntityType('company');
+            setEntityId(id);
+            setEntityError('');
+            setAddCompanyOpen(false);
+          }}
+        />
+      </Modal>
+    </>
   );
 }

@@ -4,6 +4,7 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from apps.common.models.models import Address, Document, Note
 from apps.common.models.base_models import BaseModel, BaseModelWithUser
+from apps.common.models.models import PartyDataSource
 from apps.individuals.models.models import Individual
 from django.db.models import UniqueConstraint, Q, Max
 from django.db.models.functions import Lower
@@ -62,6 +63,21 @@ class Company(BaseModelWithUser):
     )
     is_active = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
+    source = models.CharField(
+        max_length=20,
+        choices=PartyDataSource.choices,
+        default=PartyDataSource.INTERNAL,
+        db_default=PartyDataSource.INTERNAL,
+        help_text=_("Whether this record was created locally or imported from an external registry."),
+    )
+    external_reference = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        unique=True,
+        db_index=True,
+        help_text=_("Identifier of this record in the external registry, when source is external."),
+    )
     # Relationships
     addresses = GenericRelation(Address, related_query_name="company_address")
     documents = GenericRelation(

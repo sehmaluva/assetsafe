@@ -20,6 +20,11 @@ export interface CompanyCreatePayload {
   }[];
 }
 
+function unwrapRecord(data: unknown): Record<string, unknown> {
+  const body = (data as { data?: Record<string, unknown> })?.data ?? data;
+  return body as Record<string, unknown>;
+}
+
 export const companiesApi = {
   /** GET /api/companies/branches/search/?q=... */
   searchBranches: async (query: string): Promise<SearchOption[]> => {
@@ -36,6 +41,32 @@ export const companiesApi = {
     );
   },
 
+  importExternal: async (
+    externalReference: string,
+  ): Promise<{ id: number; name: string }> => {
+    const { data } = await axiosInstance.post<unknown>(
+      '/companies/companies/import-external/',
+      { external_reference: externalReference },
+    );
+    const record = unwrapRecord(data);
+    const mapped = mapBranchSearchResult(record);
+    return {
+      id: mapped.id ?? Number(record.id),
+      name: mapped.name,
+    };
+  },
+
+  resolveBranchSelection: async (item: SearchOption): Promise<number> => {
+    if (item.source === 'external' && item.external_reference) {
+      const result = await companiesApi.importExternal(item.external_reference);
+      return result.id;
+    }
+    if (item.id == null) {
+      throw new Error('Invalid company selection');
+    }
+    return item.id;
+  },
+
   createCompany: async (
     payload: CompanyCreatePayload,
   ): Promise<{ id: number; name: string }> => {
@@ -43,9 +74,7 @@ export const companiesApi = {
       '/companies/companies/',
       payload,
     );
-    const body = (data as { data?: Record<string, unknown> })?.data ?? data;
-    const record = body as Record<string, unknown>;
-    // Create returns the HQ branch (CompanyBranchDetailSerializer).
+    const record = unwrapRecord(data);
     const mapped = mapBranchSearchResult(record);
     return {
       id: mapped.id || Number(record.id),

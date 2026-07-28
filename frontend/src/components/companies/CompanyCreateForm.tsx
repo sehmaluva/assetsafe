@@ -9,11 +9,23 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { LocationCascadeSelects } from '@/components/shared/LocationCascadeSelects';
 
+/** Mirrors Company.LEGAL_STATUS_CHOICES on the backend. */
+const LEGAL_STATUS_CHOICES = [
+  { value: 'private', label: 'Private Limited' },
+  { value: 'public', label: 'Public Limited' },
+  { value: 'government', label: 'Government' },
+  { value: 'ngo', label: 'NGO' },
+  { value: 'other', label: 'Other' },
+] as const;
+
 const schema = z.object({
   registration_number: z.string().min(1, 'Required'),
   registration_name: z.string().min(1, 'Required'),
   trading_name: z.string().min(1, 'Required'),
-  legal_status: z.string().optional(),
+  legal_status: z.enum(
+    ['private', 'public', 'government', 'ngo', 'other'],
+    { message: 'Legal status is required' },
+  ),
   industry: z.string().optional(),
   street_address: z.string().min(1, 'Street address is required'),
   suburb_id: z.coerce.number().min(1, 'Suburb is required'),
@@ -102,7 +114,26 @@ export function CompanyCreateForm({
           required
           className="col-span-2"
         />
-        <Input label="Legal Status" {...register('legal_status')} />
+        <div>
+          <label className="text-xs font-medium text-slate-600">
+            Legal Status
+          </label>
+          <select
+            {...register('legal_status')}
+            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+          >
+            {LEGAL_STATUS_CHOICES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.legal_status?.message ? (
+            <p className="mt-1 text-xs text-red-600">
+              {errors.legal_status.message}
+            </p>
+          ) : null}
+        </div>
         <Input label="Industry" {...register('industry')} />
         <Input
           label="Street Address"

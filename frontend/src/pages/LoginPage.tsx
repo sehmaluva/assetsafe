@@ -85,7 +85,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white p-4">
-      <div className="w-full max-w-sm space-y-6">
+      <div className="w-full max-w-sm space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-md">
         <div className="flex items-center justify-center gap-2">
           <Shield className="h-8 w-8 text-[#0f7d8e]" />
           <span className="text-2xl font-black tracking-widest text-black uppercase">

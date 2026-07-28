@@ -21,6 +21,13 @@ class PartyType(models.TextChoices):
     COMPANY = "company", _("Company")
 
 
+class PartyDataSource(models.TextChoices):
+    """Where party master data originated."""
+
+    INTERNAL = "internal", _("Internal")
+    EXTERNAL = "external", _("External")
+
+
 class BaseAssetType(models.TextChoices):
     """Asset categories shared across asset management and hire purchase registries"""
 

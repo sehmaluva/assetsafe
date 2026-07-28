@@ -28,10 +28,17 @@ from apps.companies.api.serializers import (
 )
 from apps.companies.utils.filters import CompanyBranchFilter
 from apps.common.utils import extract_error_message
+from apps.common.services.external_registry import ExternalRegistryClient
+from apps.companies.services.external_import import import_external_company
+from rest_framework import serializers
 import logging
 from celery.result import AsyncResult
 
 logger = logging.getLogger("companies")
+
+
+class ExternalImportSerializer(serializers.Serializer):
+    external_reference = serializers.CharField(required=True)
 
 
 class CompanyViewSet(BaseViewSet):
@@ -259,6 +266,30 @@ class CompanyViewSet(BaseViewSet):
                 {"error": extract_error_message(e)}, status.HTTP_400_BAD_REQUEST
             )
 
+    @action(detail=False, methods=["post"], url_path="import-external")
+    def import_external(self, request, *args, **kwargs):
+        serializer = ExternalImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            branch = import_external_company(
+                serializer.validated_data["external_reference"],
+                created_by=request.user,
+            )
+            return self._create_rendered_response(
+                CompanyBranchDetailSerializer(branch).data,
+                status.HTTP_201_CREATED,
+            )
+        except ValueError as exc:
+            return self._create_rendered_response(
+                {"error": str(exc)}, status.HTTP_404_NOT_FOUND
+            )
+        except Exception as exc:
+            logger.error("Error importing external company: %s", exc)
+            return self._create_rendered_response(
+                {"error": "Something went wrong"},
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class CompanyBranchViewSet(BaseViewSet):
     """
@@ -402,7 +433,6 @@ class CompanyBranchViewSet(BaseViewSet):
             )
 
     @action(detail=False, methods=["get"], url_path="search")
-    @CacheService.cached(tag_prefix="branches:search")
     def search(self, request):
         """Search company branches by name or associated company details."""
         search_term = request.query_params.get("q", "").strip()
@@ -434,13 +464,21 @@ class CompanyBranchViewSet(BaseViewSet):
             )
         )
 
-        page = self.paginate_queryset(branches)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+        if branches.exists():
+            page = self.paginate_queryset(branches)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(branches, many=True)
-        return self._create_rendered_response(serializer.data)
+            serializer = self.get_serializer(branches, many=True)
+            return self._create_rendered_response(serializer.data)
+
+        client = ExternalRegistryClient()
+        if client.is_configured:
+            external_results = client.search_companies(search_term)[:25]
+            return self._create_rendered_response(external_results)
+
+        return self._create_rendered_response([])
 
     @action(detail=False, methods=["get"], url_path="claims")
     def claims(self, request, pk=None):

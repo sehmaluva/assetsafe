@@ -38,19 +38,22 @@ type CollateralSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc';
 type CollateralSearchField =
   | 'agreement_number'
   | 'debtor'
-  | 'reg_serial_number';
+  | 'reg_serial_number'
+  | 'financier';
 
 const SEARCH_FIELD_OPTIONS: { value: CollateralSearchField; label: string }[] =
   [
     { value: 'agreement_number', label: 'Agreement Number' },
     { value: 'debtor', label: 'Debtor' },
     { value: 'reg_serial_number', label: 'Reg/Serial Number' },
+    { value: 'financier', label: 'Financier' },
   ];
 
 const SEARCH_FIELD_PLACEHOLDERS: Record<CollateralSearchField, string> = {
   agreement_number: 'Search by agreement number...',
   debtor: 'Search by debtor...',
   reg_serial_number: 'Search by reg/serial number...',
+  financier: 'Search by financier name...',
 };
 
 /** Agreement end date has passed (matches backend pending-discharge logic). */

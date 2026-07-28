@@ -229,23 +229,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "position"]
-
-    def validate_email(self, value):
-        value = value.strip().lower()
-        qs = User.objects.filter(email__iexact=value).exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError("This email is already in use.")
-        return value
+        fields = ["first_name", "last_name", "position"]
+        read_only_fields = ["email"]
 
     def validate_position(self, value):
-        current = (getattr(self.instance, "position", None) or "").strip()
-        incoming = (value or "").strip()
-        if current and incoming != current:
-            raise serializers.ValidationError(
-                "Position can only be set when it is currently blank."
-            )
-        return incoming
+        return (value or "").strip()
 
 
 class PasswordChangeSerializer(serializers.Serializer):
