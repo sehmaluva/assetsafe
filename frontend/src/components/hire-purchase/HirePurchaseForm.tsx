@@ -658,7 +658,7 @@ export function HirePurchaseForm({
                     <AutocompleteInput
                       label="Data Source Name"
                       placeholder="Search user under client..."
-                      queryKey={`hp-data-source-${selectedFinancierId}`}
+                      queryKey={`hp-data-source-${selectedFinancierId}-${clientUsers.length}`}
                       displayLabel={staffDataSourceSearchLabel}
                       minChars={1}
                       fetchFn={async (q) => {

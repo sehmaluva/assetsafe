@@ -644,7 +644,7 @@ export function CollateralForm({
                     <AutocompleteInput
                       label="Data Source Name"
                       placeholder="Search user under client..."
-                      queryKey={`collateral-data-source-${selectedFinancierId}`}
+                      queryKey={`collateral-data-source-${selectedFinancierId}-${clientUsers.length}`}
                       displayLabel={staffDataSourceSearchLabel}
                       minChars={1}
                       fetchFn={async (q) => {

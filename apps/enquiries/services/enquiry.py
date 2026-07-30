@@ -205,6 +205,12 @@ def _format_money(currency_code: str | None, amount: Decimal | None) -> str | No
     return f"{code}{formatted}" if code else formatted
 
 
+def _format_agreement_end(value) -> str | None:
+    if value is None:
+        return None
+    return value.strftime("%d-%b-%y")
+
+
 def _find_open_collateral_for_identifiers(
     *,
     chassis: str,
@@ -305,6 +311,7 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
             "purchase_amount": None,
             "custodian_name_masked": None,
             "custodian_id_reg_masked": None,
+            "expected_encumbrance_end": _format_agreement_end(row.agreement_end_date),
         }
         return report
 
@@ -339,6 +346,7 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
             ),
             "custodian_name_masked": None,
             "custodian_id_reg_masked": None,
+            "expected_encumbrance_end": _format_agreement_end(row.agreement_end_date),
         }
         return report
 
@@ -369,6 +377,7 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
             "purchase_amount": None,
             "custodian_name_masked": None,
             "custodian_id_reg_masked": None,
+            "expected_encumbrance_end": None,
         }
 
         identifiers = dict(
@@ -391,6 +400,9 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
                     "owner_masked": _party_from_collateral(collateral)[0] or owner_name,
                     "id_reg_masked": _party_from_collateral(collateral)[1]
                     or owner_id_reg,
+                    "expected_encumbrance_end": _format_agreement_end(
+                        collateral.agreement_end_date
+                    ),
                 }
             )
             return base
@@ -409,6 +421,9 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
                     ),
                     "owner_masked": _party_from_hp(hp)[0] or owner_name,
                     "id_reg_masked": _party_from_hp(hp)[1] or owner_id_reg,
+                    "expected_encumbrance_end": _format_agreement_end(
+                        hp.agreement_end_date
+                    ),
                 }
             )
             return base

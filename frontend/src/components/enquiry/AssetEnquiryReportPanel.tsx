@@ -41,7 +41,15 @@ export function AssetEnquiryReportPanel({
         />
         <ReportRow label="Chassis Number" value={report.chassis_number} />
         <ReportRow label="Engine Number" value={report.engine_number} />
-        <ReportRow label="Owner" value={report.owner_masked} />
+        <ReportRow
+          label={
+            report.source === 'hire_purchase' ||
+            report.encumbrance_kind === 'hire_purchase'
+              ? 'Purchaser'
+              : 'Owner'
+          }
+          value={report.owner_masked}
+        />
         <ReportRow label="ID / Reg. No." value={report.id_reg_masked} />
       </div>
 
@@ -80,6 +88,12 @@ export function AssetEnquiryReportPanel({
                 value={report.custodian_id_reg_masked || ''}
               />
             </>
+          ) : null}
+          {report.expected_encumbrance_end ? (
+            <ReportRow
+              label="Expected Encumbrance End"
+              value={report.expected_encumbrance_end}
+            />
           ) : null}
         </div>
       ) : null}
