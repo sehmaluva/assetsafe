@@ -444,6 +444,10 @@ class LookupOptionViewSet(viewsets.ModelViewSet):
                 or HirePurchaseRegistration.objects.filter(condition=value).exists()
                 or CollateralRegistration.objects.filter(condition=value).exists()
             )
+        if option.category == LookupOption.CATEGORY_INDUSTRY:
+            from apps.companies.models.models import Company
+
+            return Company.objects.filter(industry=value, is_deleted=False).exists()
         return False
 
 
@@ -461,6 +465,10 @@ class CommonChoicesView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @CacheService.cached(
+        tag_prefix=CacheService.CHOICES_COMMON_TAG,
+        timeout=CacheService.HEAVY_CACHE_TIMEOUT,
+    )
     def get(self, request, *args, **kwargs):
         all_choices = {
             "PartyType": list_lookup_choices(LookupOption.CATEGORY_PARTY_TYPE),
@@ -477,6 +485,7 @@ class CommonChoicesView(APIView):
             "AssetCondition": list_lookup_choices(
                 LookupOption.CATEGORY_ASSET_CONDITION
             ),
+            "Industry": list_lookup_choices(LookupOption.CATEGORY_INDUSTRY),
             "CustodyType": [
                 {"value": choice.value, "label": choice.label}
                 for choice in CustodyType
@@ -516,6 +525,12 @@ class CommonChoicesView(APIView):
 
             all_choices["AssetCondition"] = [
                 {"value": c.value, "label": c.label} for c in AssetCondition
+            ]
+        if not all_choices["Industry"]:
+            from apps.companies.models.models import Industry
+
+            all_choices["Industry"] = [
+                {"value": c.value, "label": c.label} for c in Industry
             ]
 
         requested_types = request.query_params.get("types")

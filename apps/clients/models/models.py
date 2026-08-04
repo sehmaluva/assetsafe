@@ -170,10 +170,3 @@ class Client(models.Model):
         """Determine if this client type can have users"""
         return self.client_type in ["INDIVIDUAL_USER", "COMPANY_USER", "CLIENT"]
 
-    @property
-    def get_subscriptions(self):
-        """
-        Returns the display name for the subscription type.
-        This can be overridden in subclasses if needed.
-        """
-        return self.subscriptions if hasattr(self, "subscriptions") else []

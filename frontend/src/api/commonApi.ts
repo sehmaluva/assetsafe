@@ -20,13 +20,16 @@ export interface CommonChoicesResponse {
   AssetCondition?: ChoiceOption[];
   CustodyType?: ChoiceOption[];
   IdentificationType?: ChoiceOption[];
+  LegalStatus?: ChoiceOption[];
+  Industry?: ChoiceOption[];
 }
 
 export type ManagedChoiceCategory =
   | 'PartyType'
   | 'BaseAssetType'
   | 'AssetCondition'
-  | 'CollateralAssetCategory';
+  | 'CollateralAssetCategory'
+  | 'Industry';
 
 export interface ManagedChoice {
   id: number;
@@ -47,9 +50,13 @@ export const commonApi = {
   },
 
   getChoices: async (): Promise<CommonChoicesResponse> => {
-    const { data } =
-      await axiosInstance.get<CommonChoicesResponse>('/common/choices/');
-    return data;
+    const { data } = await axiosInstance.get<
+      CommonChoicesResponse | ApiResponse<CommonChoicesResponse>
+    >('/common/choices/');
+    const body = data as CommonChoicesResponse & {
+      data?: CommonChoicesResponse;
+    };
+    return body.data ?? body;
   },
 
   listManagedChoices: async (params?: {

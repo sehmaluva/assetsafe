@@ -11,7 +11,14 @@ from apps.common.utils.registry_cache import (
     invalidate_registry_caches,
 )
 from apps.companies.models.models import Company, CompanyBranch
-from apps.common.models.models import Country, Province, City, Suburb, Address
+from apps.common.models.models import (
+    Country,
+    Province,
+    City,
+    Suburb,
+    Address,
+    LookupOption,
+)
 from apps.individuals.models.models import (
     Individual,
     IndividualContactDetail,
@@ -22,6 +29,7 @@ from apps.asset_management.models.models import AssetRegistration
 from apps.hire_purchase.models.models import HirePurchaseRegistration
 from apps.collateral.models.models import CollateralRegistration
 from apps.clients.models.models import Client
+from apps.common.utils.lookups import invalidate_industry_lookup_cache
 from django.contrib.auth import get_user_model
 import logging
 
@@ -46,10 +54,21 @@ def seed_lookup_options_after_migrate(sender, app_config, **kwargs):
         from apps.common.utils.seed_lookups import seed_system_lookup_options
 
         seed_system_lookup_options()
+        invalidate_industry_lookup_cache()
     except Exception:
         # Table may not exist yet mid-migrate on older graphs; ignore and
         # rely on a later common migrate / management command.
         logger.exception("Could not seed LookupOption system rows after migrate")
+
+
+@receiver([post_save, post_delete], sender=LookupOption)
+def invalidate_lookup_option_caches(sender, instance, **kwargs):
+    """Invalidate choice caches when managed lookup options change."""
+    CacheService.invalidate_tag(CacheService.CHOICES_COMMON_TAG)
+    if instance.category == LookupOption.CATEGORY_INDUSTRY:
+        invalidate_industry_lookup_cache()
+    else:
+        CacheService.invalidate_tag(f"lookups:{instance.category}")
 
 
 MONITORED_MODELS = (
@@ -197,22 +216,6 @@ def invalidate_address_caches(instance):
         )
 
 
-def invalidate_subscription_caches(instance):
-    """Handle invalidation for subscription-related models"""
-    model_name = instance._meta.model_name.lower()
-
-    CacheService.invalidate_tag("subscription:list")
-    CacheService.invalidate_tag("subscription:search")
-    CacheService.invalidate_tag("services:list")
-    CacheService.invalidate_tag("period:list")
-
-    if hasattr(instance, "pk") and instance.pk:
-        CacheService.invalidate_tag(f"subscription:{model_name}:{instance.pk}")
-        CacheService.invalidate_tag(f"subscription:{instance.pk}")
-
-    CacheService.invalidate_tag("choices:subscription")
-
-
 @receiver([post_save, post_delete])
 def invalidate_model_cache(sender, instance, **kwargs):
     """
@@ -254,8 +257,6 @@ def invalidate_model_cache(sender, instance, **kwargs):
             invalidate_client_caches(instance)
         elif sender == User:
             invalidate_user_caches(instance)
-        # elif sender in (Subscription, Services, SubscriptionPeriod):
-        #     invalidate_subscription_caches(instance)
 
         logger.debug(
             f"Successfully invalidated caches for {sender.__name__} ID {getattr(instance, 'pk', 'new')}"

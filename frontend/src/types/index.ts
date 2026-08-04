@@ -74,6 +74,7 @@ export interface CollateralRecord {
 }
 
 export interface CollateralDashboard {
+  number_of_financiers: number;
   active_agreements: number;
   pending_discharge_confirmation: number;
   total_active_loan_value: number;

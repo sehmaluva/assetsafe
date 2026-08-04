@@ -12,6 +12,37 @@ from django.utils.functional import cached_property
 from django.db import transaction
 
 
+class Industry(models.TextChoices):
+    """
+    Default industry sectors for companies.
+
+    Live dropdown values are served from ``LookupOption`` rows with
+    category ``Industry`` (seeded from this enum via ``seed_lookups``).
+    Staff may add additional industries in Django admin / managed-choices.
+    """
+
+    AGRICULTURE = "agriculture", _("Agriculture")
+    BANKING = "banking", _("Banking")
+    CONSTRUCTION = "construction", _("Construction")
+    EDUCATION = "education", _("Education")
+    ENERGY = "energy", _("Energy")
+    ENTERTAINMENT = "entertainment", _("Entertainment")
+    FINANCE = "finance", _("Finance")
+    FOOD = "food", _("Food")
+    HEALTH = "health", _("Health")
+    HOSPITALITY = "hospitality", _("Hospitality")
+    INSURANCE = "insurance", _("Insurance")
+    MANUFACTURING = "manufacturing", _("Manufacturing")
+    MEDIA = "media", _("Media")
+    RETAIL = "retail", _("Retail")
+    TECHNOLOGY = "technology", _("Technology")
+    TELECOMMUNICATIONS = "telecommunications", _("Telecommunications")
+    TRANSPORTATION = "transportation", _("Transportation")
+    AVIATION = "aviation", _("Aviation")
+    REAL_ESTATE = "real_estate", _("Real Estate")
+    OTHER = "other", _("Other")
+
+
 class Company(BaseModelWithUser):
     LEGAL_STATUS_CHOICES = (
         ("private", "Private Limited"),
@@ -68,7 +99,9 @@ class Company(BaseModelWithUser):
         choices=PartyDataSource.choices,
         default=PartyDataSource.INTERNAL,
         db_default=PartyDataSource.INTERNAL,
-        help_text=_("Whether this record was created locally or imported from an external registry."),
+        help_text=_(
+            "Whether this record was created locally or imported from an external registry."
+        ),
     )
     external_reference = models.CharField(
         max_length=255,
@@ -76,7 +109,9 @@ class Company(BaseModelWithUser):
         null=True,
         unique=True,
         db_index=True,
-        help_text=_("Identifier of this record in the external registry, when source is external."),
+        help_text=_(
+            "Identifier of this record in the external registry, when source is external."
+        ),
     )
     # Relationships
     addresses = GenericRelation(Address, related_query_name="company_address")
@@ -218,14 +253,13 @@ class CompanyBranch(BaseModelWithUser):
             else ""
         )
         branch_name = (self.branch_name or "").strip()
-        reg_no = (
-            (company.registration_number or "").strip() if company else ""
-        )
+        reg_no = (company.registration_number or "").strip() if company else ""
 
         if (
             branch_name
             and company_name
-            and branch_name.lower() not in {
+            and branch_name.lower()
+            not in {
                 company_name.lower(),
                 (company.registration_name or "").strip().lower(),
                 (company.trading_name or "").strip().lower(),

@@ -81,14 +81,19 @@ export function applyApiValidationErrors<T extends FieldValues>(
 
   const body = data as Record<string, unknown>;
 
-  // A plain string in `error` is a global message, not a field-level error.
-  // Return false so the caller can show it as a toast.
+  // A plain string in `error` / `detail` / non_field_errors is a global message.
   if (typeof body.error === 'string' && !body.errors) return false;
+  if (typeof body.detail === 'string') return false;
+  if (Array.isArray(body.non_field_errors) && body.non_field_errors.length) {
+    return false;
+  }
 
   const errorPayload =
     body.errors ?? (typeof body.error === 'object' ? body.error : null) ?? body;
 
-  const flattened = flattenApiErrors(errorPayload);
+  const flattened = flattenApiErrors(errorPayload).filter(
+    ({ field }) => field !== 'non_field_errors' && field !== 'detail',
+  );
   if (!flattened.length) return false;
 
   for (const { field, message } of flattened) {
@@ -98,10 +103,24 @@ export function applyApiValidationErrors<T extends FieldValues>(
   return true;
 }
 
+/** Best-effort global API error message for toasts. */
+export function getApiErrorMessage(err: unknown): string | undefined {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (!data) return undefined;
+  if (typeof data === 'string') return data;
+  if (typeof data !== 'object') return undefined;
+  const body = data as Record<string, unknown>;
+  if (typeof body.detail === 'string') return body.detail;
+  if (typeof body.error === 'string') return body.error;
+  if (typeof body.message === 'string') return body.message;
+  if (Array.isArray(body.non_field_errors) && body.non_field_errors[0]) {
+    return String(body.non_field_errors[0]);
+  }
+  return undefined;
+}
+
 /** Returns the first validation message from a react-hook-form errors object. */
-export function firstFormErrorMessage(
-  errors: FieldErrors,
-): string | undefined {
+export function firstFormErrorMessage(errors: FieldErrors): string | undefined {
   for (const value of Object.values(errors)) {
     if (!value || typeof value !== 'object') continue;
     if ('message' in value && typeof value.message === 'string') {

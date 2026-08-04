@@ -335,8 +335,13 @@ class CollateralRegistrationViewSet(BaseViewSet):
             ),
             total_active_loan_value=Sum("total_debt", filter=active_filter),
         )
+        # Distinct-financier count mirrors the Hire Purchase dashboard approach.
+        # Count distinct financiers across the scoped queryset.
+        number_of_financiers: int = qs.values("financier_id").distinct().count()
         if aggregates["total_active_loan_value"] is None:
             aggregates["total_active_loan_value"] = 0
+
+        aggregates["number_of_financiers"] = number_of_financiers
 
         serializer = CollateralDashboardSerializer(data=aggregates)
         serializer.is_valid(raise_exception=True)

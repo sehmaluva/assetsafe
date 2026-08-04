@@ -492,6 +492,7 @@ class CollateralDashboardSerializer(serializers.Serializer):
     Read-only dashboard statistics for the Collateral Registry .
     """
 
+    number_of_financiers = serializers.IntegerField(min_value=0)
     active_agreements = serializers.IntegerField(min_value=0)
     pending_discharge_confirmation = serializers.IntegerField(min_value=0)
     total_active_loan_value = serializers.DecimalField(

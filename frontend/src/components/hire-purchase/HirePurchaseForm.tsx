@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useFormState, Controller } from 'react-hook-form';
 import { zodResolver } from '@/lib/zodResolver';
-import { applyApiValidationErrors } from '@/lib/formErrors';
+import { applyApiValidationErrors, getApiErrorMessage } from '@/lib/formErrors';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -192,7 +192,7 @@ export function HirePurchaseForm({
   const currentPurchaserType = watch('purchaser_type');
   const selectedFinancierId = watch('financier_id');
 
-  const { data: clientUsers = [] } = useQuery({
+  const { data: clientUsers = [], isLoading: clientUsersLoading } = useQuery({
     queryKey: ['hp-client-users', selectedFinancierId],
     queryFn: () => clientsApi.listClientUsers(Number(selectedFinancierId)),
     enabled:
@@ -201,6 +201,7 @@ export function HirePurchaseForm({
       !!selectedFinancierId &&
       Number(selectedFinancierId) > 0,
   });
+  const clientUsersBusy = clientUsersLoading;
 
   const { data: clientDetail } = useQuery({
     queryKey: ['hp-client-detail', selectedFinancierId],
@@ -352,10 +353,7 @@ export function HirePurchaseForm({
     onError: (err: unknown) => {
       setConfirmingUpdate(false);
       if (!applyApiValidationErrors(setError, err)) {
-        const data = (
-          err as { response?: { data?: { message?: string; error?: string } } }
-        )?.response?.data;
-        toast.error(data?.message ?? data?.error ?? 'Failed to save');
+        toast.error(getApiErrorMessage(err) ?? 'Failed to save');
       } else {
         toast.error('Please fix the highlighted fields');
       }
@@ -661,6 +659,8 @@ export function HirePurchaseForm({
                       queryKey={`hp-data-source-${selectedFinancierId}-${clientUsers.length}`}
                       displayLabel={staffDataSourceSearchLabel}
                       minChars={1}
+                      externalLoading={clientUsersBusy}
+                      loadingLabel="Fetching users..."
                       fetchFn={async (q) => {
                         const term = q.trim().toLowerCase();
                         if (!term) return [];

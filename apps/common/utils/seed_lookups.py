@@ -45,6 +45,7 @@ def seed_system_lookup_options(
         CollateralAssetType,
         PartyType,
     )
+    from apps.companies.models.models import Industry
 
     # Category keys must match LookupOption.CATEGORY_* (and regenerated migrations).
     batches: list[tuple[str, list[tuple[str, str, int]]]] = [
@@ -52,6 +53,7 @@ def seed_system_lookup_options(
         ("BaseAssetType", _rows_from_text_choices(BaseAssetType)),
         ("AssetCondition", _rows_from_text_choices(AssetCondition)),
         ("CollateralAssetCategory", _rows_from_text_choices(CollateralAssetType)),
+        ("Industry", _rows_from_text_choices(Industry)),
     ]
 
     for category, rows in batches:

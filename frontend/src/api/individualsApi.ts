@@ -28,6 +28,31 @@ function unwrapRecord(data: unknown): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
+export interface IndividualContactDetails {
+  id: number;
+  email: string;
+  phone: string;
+  telephone: string;
+  address: string;
+}
+
+function formatAddress(addr: unknown): string {
+  if (!addr || typeof addr !== 'object') return '';
+  const row = addr as Record<string, unknown>;
+  const suburb =
+    row.suburb && typeof row.suburb === 'object'
+      ? String((row.suburb as { name?: string }).name ?? '')
+      : '';
+  const city =
+    row.city && typeof row.city === 'object'
+      ? String((row.city as { name?: string }).name ?? '')
+      : '';
+  return [String(row.street_address ?? ''), suburb, city]
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
 export const individualsApi = {
   /** GET /api/individuals/search/?search=... */
   searchIndividuals: async (query: string): Promise<SearchOption[]> => {
@@ -82,5 +107,28 @@ export const individualsApi = {
       (typeof record.name === 'string' && record.name) ||
       `${record.first_name ?? ''} ${record.last_name ?? ''}`.trim();
     return { id, name };
+  },
+
+  getIndividual: async (id: number): Promise<IndividualContactDetails> => {
+    const { data } = await axiosInstance.get<unknown>(`/individuals/${id}/`);
+    const record = unwrapRecord(data);
+    const contacts = Array.isArray(record.contact_details)
+      ? (record.contact_details as { type?: string; phone_number?: string }[])
+      : [];
+    const mobile =
+      contacts.find((c) => c.type === 'mobile' || c.type === 'combined')
+        ?.phone_number ??
+      contacts[0]?.phone_number ??
+      '';
+    const telephone =
+      contacts.find((c) => c.type === 'landline' || c.type === 'telephone')
+        ?.phone_number ?? '';
+    return {
+      id: Number(record.id),
+      email: String(record.email ?? ''),
+      phone: String(mobile),
+      telephone: String(telephone),
+      address: formatAddress(record.addresses),
+    };
   },
 };

@@ -256,6 +256,14 @@ class AssetRegistrationSerializer(serializers.ModelSerializer):
                     custody_errors["individual_custodian"] = (
                         "Individual custodian must be empty when custodian_type is 'company'."
                     )
+            custodian_address = attrs.get(
+                "custodian_address",
+                getattr(self.instance, "custodian_address", "") or "",
+            )
+            if not str(custodian_address).strip():
+                custody_errors["custodian_address"] = (
+                    "Custodian address is required when custody type is set."
+                )
             if custody_errors:
                 raise serializers.ValidationError(custody_errors)
         else:

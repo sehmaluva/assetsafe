@@ -9,6 +9,8 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: 'danger' | 'primary' | 'secondary' | 'success';
   loading?: boolean;
+  /** Single OK button — for system notices that need acknowledgment, not a choice. */
+  alertOnly?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -29,6 +31,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   variant = 'danger',
   loading = false,
+  alertOnly = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -47,21 +50,23 @@ export function ConfirmDialog({
       <div className="space-y-4 bg-white p-5">
         <p className="text-sm leading-relaxed text-slate-700">{message}</p>
         <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={loading}
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </Button>
+          {!alertOnly && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={loading}
+              onClick={onCancel}
+            >
+              {cancelLabel}
+            </Button>
+          )}
           <Button
             type="button"
             variant={variant}
             loading={loading}
             onClick={onConfirm}
           >
-            {confirmLabel}
+            {alertOnly ? 'OK' : confirmLabel}
           </Button>
         </div>
       </div>

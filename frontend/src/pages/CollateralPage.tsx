@@ -79,6 +79,7 @@ export default function CollateralPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const authReady = useAuthStore((s) => s.authReady);
+  const user = useAuthStore((s) => s.user);
   const [searchField, setSearchField] =
     useState<CollateralSearchField>('agreement_number');
   const [searchValue, setSearchValue] = useState('');
@@ -94,13 +95,23 @@ export default function CollateralPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewRecord, setViewRecord] = useState<CollateralRecord | null>(null);
 
+  const openAddSingle = async () => {
+    setAddOpen(true);
+  };
+
+  const openAddMultiple = async (file: File) => {
+    setUploadFile(file);
+    setAddMultipleOpen(true);
+  };
+
   useEffect(() => {
     if (searchParams.get('add') === '1') {
-      setAddOpen(true);
+      void openAddSingle();
       const next = new URLSearchParams(searchParams);
       next.delete('add');
       setSearchParams(next, { replace: true });
     }
+    // Intentionally only react to the add=1 deep link.
   }, [searchParams, setSearchParams]);
 
   const { data: statsData } = useQuery({
@@ -223,6 +234,10 @@ export default function CollateralPage() {
 
         <div className="flex flex-wrap items-center gap-4 border-b border-[#8f8f8f] bg-[#f8f7f2] px-3 py-2">
           <InlineStat
+            label="Financiers"
+            value={statsData?.number_of_financiers ?? 0}
+          />
+          <InlineStat
             label="Active Agreements"
             value={statsData?.active_agreements ?? 0}
           />
@@ -286,41 +301,42 @@ export default function CollateralPage() {
             ) : null}
           </div>
 
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="success"
-              leftIcon={<Plus className="h-3.5 w-3.5" />}
-              onClick={() => setAddOpen(true)}
-              className="h-7 rounded-none px-3 text-[12px] font-bold"
-            >
-              Add Single
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              leftIcon={<Layers className="h-3.5 w-3.5" />}
-              onClick={() => fileInputRef.current?.click()}
-              className="h-7 rounded-none px-3 text-[12px] font-bold"
-            >
-              Add Multiple
-            </Button>
-            {/* Hidden file input — CSV / Excel only */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                if (file) {
-                  setUploadFile(file);
-                  setAddMultipleOpen(true);
-                }
-                // reset so the same file can be re-selected if needed
-                e.target.value = '';
-              }}
-            />
+          <div className="flex flex-col items-stretch">
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="success"
+                leftIcon={<Plus className="h-3.5 w-3.5" />}
+                onClick={() => void openAddSingle()}
+                className="h-7 rounded-none px-3 text-[12px] font-bold"
+              >
+                Add Single
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Layers className="h-3.5 w-3.5" />}
+                onClick={() => fileInputRef.current?.click()}
+                className="h-7 rounded-none px-3 text-[12px] font-bold"
+              >
+                Add Multiple
+              </Button>
+              {/* Hidden file input — CSV / Excel only */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file) {
+                    void openAddMultiple(file);
+                  }
+                  // reset so the same file can be re-selected if needed
+                  e.target.value = '';
+                }}
+              />
+            </div>
           </div>
         </div>
 
