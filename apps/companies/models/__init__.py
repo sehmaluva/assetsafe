@@ -3,4 +3,5 @@ from .models import (
     CompanyBranch,
     CompanyProfile,
     ContactPerson,
+    Industry,
 )

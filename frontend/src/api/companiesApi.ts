@@ -11,7 +11,11 @@ export interface CompanyCreatePayload {
   trading_name: string;
   legal_status?: string;
   date_of_incorporation?: string | null;
-  industry?: string;
+  industry: string;
+  profile: {
+    email: string;
+    mobile_phone: string;
+  };
   addresses?: {
     address_type?: string;
     is_primary?: boolean;
@@ -23,6 +27,31 @@ export interface CompanyCreatePayload {
 function unwrapRecord(data: unknown): Record<string, unknown> {
   const body = (data as { data?: Record<string, unknown> })?.data ?? data;
   return body as Record<string, unknown>;
+}
+
+export interface BranchContactDetails {
+  id: number;
+  email: string;
+  phone: string;
+  telephone: string;
+  address: string;
+}
+
+function formatAddress(addr: unknown): string {
+  if (!addr || typeof addr !== 'object') return '';
+  const row = addr as Record<string, unknown>;
+  const suburb =
+    row.suburb && typeof row.suburb === 'object'
+      ? String((row.suburb as { name?: string }).name ?? '')
+      : '';
+  const city =
+    row.city && typeof row.city === 'object'
+      ? String((row.city as { name?: string }).name ?? '')
+      : '';
+  return [String(row.street_address ?? ''), suburb, city]
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(', ');
 }
 
 export const companiesApi = {
@@ -79,6 +108,24 @@ export const companiesApi = {
     return {
       id: mapped.id || Number(record.id),
       name: mapped.name,
+    };
+  },
+
+  getBranch: async (id: number): Promise<BranchContactDetails> => {
+    const { data } = await axiosInstance.get<unknown>(
+      `/companies/branches/${id}/`,
+    );
+    const record = unwrapRecord(data);
+    const profile =
+      record.profile && typeof record.profile === 'object'
+        ? (record.profile as Record<string, unknown>)
+        : null;
+    return {
+      id: Number(record.id),
+      email: String(record.email ?? profile?.email ?? ''),
+      phone: String(record.phone ?? profile?.mobile_phone ?? ''),
+      telephone: String(profile?.landline_phone ?? ''),
+      address: formatAddress(record.primary_address),
     };
   },
 };

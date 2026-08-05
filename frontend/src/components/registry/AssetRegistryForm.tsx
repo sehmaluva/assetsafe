@@ -20,6 +20,7 @@ import { FormSectionHeader } from '@/components/shared/FormSectionHeader';
 import { FieldError } from '@/components/shared/FieldError';
 import { commonApi } from '@/api/commonApi';
 import { queryOptions } from '@/api/queryOptions';
+import type { SearchOption } from '@/lib/searchResults';
 
 const schema = z
   .object({
@@ -77,6 +78,13 @@ const schema = z
         path: ['custody_type'],
       });
     }
+    if (!data.custodian_address?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Custodian address is required',
+        path: ['custodian_address'],
+      });
+    }
   });
 
 type FormValues = z.infer<typeof schema>;
@@ -104,6 +112,10 @@ export function AssetRegistryForm({
     useState(false);
   const [addCustodianCompanyOpen, setAddCustodianCompanyOpen] = useState(false);
   const [addGuarantorOpen, setAddGuarantorOpen] = useState(false);
+  const [custodianSearchLabel, setCustodianSearchLabel] = useState('');
+  const [guarantorSelectedId, setGuarantorSelectedId] = useState<
+    number | undefined
+  >();
 
   const { register, control, handleSubmit, watch, setValue, setError } =
     useForm<FormValues>({
@@ -133,16 +145,107 @@ export function AssetRegistryForm({
   const { data: choices = {} } = useQuery({
     queryKey: ['common-choices'],
     queryFn: commonApi.getChoices,
-    ...queryOptions.static,
+    ...queryOptions.lists,
   });
+
+  const CUSTODY_TYPE_FALLBACK = [
+    { value: 'rental', label: 'Rental' },
+    { value: 'escrow', label: 'Escrow' },
+    { value: 'consignment', label: 'Consignment' },
+    { value: 'trust', label: 'Trust' },
+    { value: 'arrangement', label: 'Arrangement' },
+    { value: 'employee', label: 'Employee' },
+  ];
 
   const partyTypeOptions = choices.PartyType ?? [];
   const assetCategoryOptions = choices.BaseAssetType ?? [];
   const assetConditionOptions = choices.AssetCondition ?? [];
-  const custodyTypeOptions = choices.CustodyType ?? [];
+  const custodyTypeOptions =
+    choices.CustodyType && choices.CustodyType.length > 0
+      ? choices.CustodyType
+      : CUSTODY_TYPE_FALLBACK;
   const currentOwnerType = watch('owner_type');
   const underCustody = watch('under_custody');
   const currentCustodianType = watch('custodian_type');
+  const currentCustodianId = watch('custodian_id');
+  const guarantorName = watch('guarantor_name');
+  const guarantorIdentification = watch('guarantor_identification');
+
+  const formatCustodianDisplay = (name?: string, subtitle?: string) => {
+    const trimmedName = (name ?? '').trim();
+    const trimmedSubtitle = (subtitle ?? '').trim();
+    if (!trimmedName) return trimmedSubtitle;
+    if (!trimmedSubtitle) return trimmedName;
+    return `${trimmedName} - ${trimmedSubtitle}`;
+  };
+
+  const applyCustodianContact = (contact: {
+    email?: string;
+    phone?: string;
+    telephone?: string;
+    address?: string;
+  }) => {
+    setValue('custodian_address', contact.address ?? '', {
+      shouldValidate: true,
+    });
+    setValue('custodian_email', contact.email ?? '');
+    setValue('custodian_mobile', contact.phone ?? '');
+    setValue('custodian_telephone', contact.telephone ?? '');
+  };
+
+  const applyCustodianSelection = async (item: SearchOption) => {
+    const id =
+      currentCustodianType === 'company'
+        ? await companiesApi.resolveBranchSelection(item)
+        : await individualsApi.resolveIndividualSelection(item);
+    setCustodianSearchLabel(
+      formatCustodianDisplay(item.name, item.subtitle ?? ''),
+    );
+    return id;
+  };
+
+  useEffect(() => {
+    if (!underCustody || !currentCustodianId || currentCustodianId < 1) {
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        if (currentCustodianType === 'company') {
+          const contact = await companiesApi.getBranch(currentCustodianId);
+          if (!cancelled) applyCustodianContact(contact);
+        } else {
+          const contact =
+            await individualsApi.getIndividual(currentCustodianId);
+          if (!cancelled) applyCustodianContact(contact);
+        }
+      } catch {
+        // Keep manually entered values if lookup fails.
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fill only when custodian selection changes
+  }, [underCustody, currentCustodianId, currentCustodianType]);
+
+  const applyGuarantorSelection = async (item: SearchOption) => {
+    const id = await individualsApi.resolveIndividualSelection(item);
+    setValue('guarantor_name', item.name, { shouldValidate: true });
+    setValue('guarantor_identification', item.subtitle ?? '', {
+      shouldValidate: true,
+    });
+    setGuarantorSelectedId(id);
+    return id;
+  };
+
+  const clearGuarantorSelection = (v: number) => {
+    if (v) return;
+    setValue('guarantor_name', '');
+    setValue('guarantor_identification', '');
+    setGuarantorSelectedId(undefined);
+  };
 
   useEffect(() => {
     if (!watch('currency') && currencies.length > 0) {
@@ -472,12 +575,14 @@ export function AssetRegistryForm({
                 if (!e.target.checked) {
                   setValue('custody_type', '');
                   setValue('custodian_id', undefined);
+                  setCustodianSearchLabel('');
                   setValue('custodian_address', '');
                   setValue('custodian_email', '');
                   setValue('custodian_mobile', '');
                   setValue('custodian_telephone', '');
                   setValue('guarantor_name', '');
                   setValue('guarantor_identification', '');
+                  setGuarantorSelectedId(undefined);
                 }
               }}
             />
@@ -491,7 +596,16 @@ export function AssetRegistryForm({
                   Custodian Type
                 </label>
                 <select
-                  {...register('custodian_type')}
+                  {...register('custodian_type', {
+                    onChange: () => {
+                      setValue('custodian_id', undefined);
+                      setCustodianSearchLabel('');
+                      setValue('custodian_address', '');
+                      setValue('custodian_email', '');
+                      setValue('custodian_mobile', '');
+                      setValue('custodian_telephone', '');
+                    },
+                  })}
                   className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
                 >
                   {partyTypeOptions.map((option: any) => (
@@ -511,16 +625,13 @@ export function AssetRegistryForm({
                       label="Custodian Name / ID/Reg Number"
                       placeholder="Search custodian..."
                       queryKey={`asset-custodian-${currentCustodianType}`}
+                      displayLabel={custodianSearchLabel}
                       fetchFn={(q) =>
                         currentCustodianType === 'company'
                           ? companiesApi.searchBranches(q)
                           : individualsApi.searchIndividuals(q)
                       }
-                      resolveSelection={(item) =>
-                        currentCustodianType === 'company'
-                          ? companiesApi.resolveBranchSelection(item)
-                          : individualsApi.resolveIndividualSelection(item)
-                      }
+                      resolveSelection={applyCustodianSelection}
                       createLabel={
                         currentCustodianType === 'company'
                           ? 'Create company'
@@ -536,7 +647,17 @@ export function AssetRegistryForm({
                       error={errors.custodian_id?.message}
                       value={field.value}
                       onBlur={field.onBlur}
-                      onChange={(v) => field.onChange(Number(v) || undefined)}
+                      onChange={(v) => {
+                        const id = Number(v) || undefined;
+                        field.onChange(id);
+                        if (!id) {
+                          setCustodianSearchLabel('');
+                          setValue('custodian_address', '');
+                          setValue('custodian_email', '');
+                          setValue('custodian_mobile', '');
+                          setValue('custodian_telephone', '');
+                        }
+                      }}
                     />
                   )}
                 />
@@ -562,6 +683,8 @@ export function AssetRegistryForm({
                   label="Address"
                   {...register('custodian_address')}
                   placeholder="Auto-fill or enter address"
+                  required
+                  error={errors.custodian_address?.message}
                 />
               </div>
               <Input label="Mobile" {...register('custodian_mobile')} />
@@ -584,10 +707,31 @@ export function AssetRegistryForm({
                 </select>
                 <FieldError message={errors.custody_type?.message} />
               </div>
-              <Input label="Guarantor" {...register('guarantor_name')} />
-              <Input
+              <AutocompleteInput
+                label="Guarantor"
+                placeholder="Search individuals..."
+                queryKey="asset-guarantor-name"
+                minChars={1}
+                displayLabel={guarantorName}
+                value={guarantorSelectedId}
+                fetchFn={(q) => individualsApi.searchIndividuals(q)}
+                resolveSelection={applyGuarantorSelection}
+                onChange={clearGuarantorSelection}
+                onCreateNew={() => setAddGuarantorOpen(true)}
+                createLabel="Create individual"
+              />
+              <AutocompleteInput
                 label="Guarantor ID"
-                {...register('guarantor_identification')}
+                placeholder="Search by ID number..."
+                queryKey="asset-guarantor-id"
+                minChars={1}
+                displayLabel={guarantorIdentification}
+                value={guarantorSelectedId}
+                fetchFn={(q) => individualsApi.searchIndividuals(q)}
+                resolveSelection={applyGuarantorSelection}
+                onChange={clearGuarantorSelection}
+                onCreateNew={() => setAddGuarantorOpen(true)}
+                createLabel="Create individual"
               />
               <div className="flex items-end">
                 <Button
@@ -662,9 +806,10 @@ export function AssetRegistryForm({
         {currentCustodianType === 'company' ? (
           <CompanyCreateForm
             onCancel={() => setAddCustodianCompanyOpen(false)}
-            onSuccess={({ id }) => {
+            onSuccess={({ id, name }) => {
               setValue('custodian_type', 'company');
               setValue('custodian_id', id, { shouldValidate: true });
+              setCustodianSearchLabel(name || `Company #${id}`);
               setAddCustodianCompanyOpen(false);
               setAddCustodianIndividualOpen(false);
             }}
@@ -672,9 +817,15 @@ export function AssetRegistryForm({
         ) : (
           <IndividualCreateForm
             onCancel={() => setAddCustodianIndividualOpen(false)}
-            onSuccess={({ id }) => {
+            onSuccess={({ id, name, identification_number }) => {
               setValue('custodian_type', 'individual');
               setValue('custodian_id', id, { shouldValidate: true });
+              setCustodianSearchLabel(
+                formatCustodianDisplay(
+                  name || `Individual #${id}`,
+                  identification_number ?? '',
+                ),
+              );
               setAddCustodianIndividualOpen(false);
               setAddCustodianCompanyOpen(false);
             }}
@@ -689,8 +840,14 @@ export function AssetRegistryForm({
       >
         <IndividualCreateForm
           onCancel={() => setAddGuarantorOpen(false)}
-          onSuccess={({ id, name }) => {
-            setValue('guarantor_name', name || `Individual #${id}`);
+          onSuccess={({ id, name, identification_number }) => {
+            setValue('guarantor_name', name || `Individual #${id}`, {
+              shouldValidate: true,
+            });
+            setValue('guarantor_identification', identification_number ?? '', {
+              shouldValidate: true,
+            });
+            setGuarantorSelectedId(id);
             setAddGuarantorOpen(false);
           }}
         />

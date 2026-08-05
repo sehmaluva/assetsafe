@@ -29,11 +29,12 @@ class LookupOptionSerializer(serializers.ModelSerializer):
             LookupOption.CATEGORY_BASE_ASSET_TYPE,
             LookupOption.CATEGORY_ASSET_CONDITION,
             LookupOption.CATEGORY_COLLATERAL_ASSET_CATEGORY,
+            LookupOption.CATEGORY_INDUSTRY,
         }
         if value not in allowed:
             raise serializers.ValidationError(
                 "Category must be PartyType, BaseAssetType, "
-                "AssetCondition, or CollateralAssetCategory."
+                "AssetCondition, CollateralAssetCategory, or Industry."
             )
         return value
 

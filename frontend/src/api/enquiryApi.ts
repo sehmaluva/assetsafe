@@ -54,6 +54,7 @@ export interface AssetEnquiryReport {
   purchase_amount: string | null;
   custodian_name_masked: string | null;
   custodian_id_reg_masked: string | null;
+  expected_encumbrance_end: string | null;
 }
 
 export const enquiryApi = {

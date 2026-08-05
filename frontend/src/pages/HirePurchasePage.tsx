@@ -80,6 +80,7 @@ export default function HirePurchasePage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const authReady = useAuthStore((s) => s.authReady);
+  const user = useAuthStore((s) => s.user);
   const [searchField, setSearchField] =
     useState<HirePurchaseSearchField>('agreement_number');
   const [searchValue, setSearchValue] = useState('');
@@ -95,13 +96,23 @@ export default function HirePurchasePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewRecord, setViewRecord] = useState<HirePurchaseRecord | null>(null);
 
+  const openAddSingle = async () => {
+    setAddOpen(true);
+  };
+
+  const openAddMultiple = async (file: File) => {
+    setUploadFile(file);
+    setAddMultipleOpen(true);
+  };
+
   useEffect(() => {
     if (searchParams.get('add') === '1') {
-      setAddOpen(true);
+      void openAddSingle();
       const next = new URLSearchParams(searchParams);
       next.delete('add');
       setSearchParams(next, { replace: true });
     }
+    // Intentionally only react to the add=1 deep link.
   }, [searchParams, setSearchParams]);
 
   const { data: statsData } = useQuery({
@@ -305,41 +316,42 @@ export default function HirePurchasePage() {
             ) : null}
           </div>
 
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="success"
-              leftIcon={<Plus className="h-3.5 w-3.5" />}
-              onClick={() => setAddOpen(true)}
-              className="h-7 rounded-none px-3 text-[12px] font-bold"
-            >
-              Add Single
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              leftIcon={<Layers className="h-3.5 w-3.5" />}
-              onClick={() => fileInputRef.current?.click()}
-              className="h-7 rounded-none px-3 text-[12px] font-bold"
-            >
-              Add Multiple
-            </Button>
-            {/* Hidden file input — CSV / Excel only */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                if (file) {
-                  setUploadFile(file);
-                  setAddMultipleOpen(true);
-                }
-                // reset so the same file can be re-selected if needed
-                e.target.value = '';
-              }}
-            />
+          <div className="flex flex-col items-stretch">
+            <div className="flex gap-1">
+              <Button
+                size="sm"
+                variant="success"
+                leftIcon={<Plus className="h-3.5 w-3.5" />}
+                onClick={() => void openAddSingle()}
+                className="h-7 rounded-none px-3 text-[12px] font-bold"
+              >
+                Add Single
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Layers className="h-3.5 w-3.5" />}
+                onClick={() => fileInputRef.current?.click()}
+                className="h-7 rounded-none px-3 text-[12px] font-bold"
+              >
+                Add Multiple
+              </Button>
+              {/* Hidden file input — CSV / Excel only */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  if (file) {
+                    void openAddMultiple(file);
+                  }
+                  // reset so the same file can be re-selected if needed
+                  e.target.value = '';
+                }}
+              />
+            </div>
           </div>
         </div>
 
@@ -393,7 +405,9 @@ export default function HirePurchasePage() {
                   <th className="px-2 py-2 font-bold">Asset</th>
                   <th className="px-2 py-2 font-bold">Reg/Serial</th>
                   <th className="px-2 py-2 font-bold">Currency</th>
-                  <th className="px-2 py-2 font-bold text-right">Amount</th>
+                  <th className="px-2 py-2 font-bold text-right">
+                    Purchase Amount
+                  </th>
                   <th className="px-2 py-2 font-bold">Start</th>
                   <th className="px-2 py-2 font-bold">End</th>
                   <th className="px-2 py-2 font-bold" />

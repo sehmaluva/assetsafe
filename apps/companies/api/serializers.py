@@ -7,7 +7,7 @@ from apps.companies.models.models import (
     ContactPerson,
     CompanyProfile,
 )
-from apps.common.models.models import Address, Document, Note, PartyDataSource
+from apps.common.models.models import Address, Document, Note, PartyDataSource, LookupOption
 from apps.common.api.serializers import (
     AddressSerializer,
     DocumentSerializer,
@@ -15,10 +15,13 @@ from apps.common.api.serializers import (
     AddressCreateSerializer,
 )
 from apps.common.utils import normalize_zimbabwe_mobile, validate_email
+from apps.common.utils.lookups import ensure_valid_lookup_value
 from apps.individuals.utils.helpers import create_address_helper
 from django.db.models import Q
 import logging
 from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 # # from apps.legal.api.serializers.claim_serializers import ClaimMinimalSerializer
 # from apps.legal.models.claims import Claim
@@ -272,7 +275,8 @@ class CompanyCreateSerializer(serializers.ModelSerializer):
     addresses = AddressCreateSerializer(many=True, required=False)
     documents = DocumentSerializer(many=True, required=False)
     notes = NoteSerializer(many=True, required=False)
-    profile = CompanyProfileSerializer(required=False)
+    profile = CompanyProfileSerializer(required=True)
+    industry = serializers.CharField(required=True, allow_blank=False)
 
     class Meta:
         model = Company
@@ -288,6 +292,18 @@ class CompanyCreateSerializer(serializers.ModelSerializer):
             "notes",
             "profile",
         ]
+
+    def validate_industry(self, value: str) -> str:
+        if not value or not str(value).strip():
+            raise serializers.ValidationError("Industry is required.")
+        try:
+            return ensure_valid_lookup_value(
+                LookupOption.CATEGORY_INDUSTRY,
+                value,
+                field="industry",
+            )
+        except DjangoValidationError as exc:
+            raise DRFValidationError(exc.message_dict) from exc
 
     def validate(self, attrs):
         registration_number = attrs.get("registration_number")
@@ -309,6 +325,31 @@ class CompanyCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "A company with this registration/trading name already exists."
             )
+
+        profile_data = attrs.get("profile") or {}
+        profile_errors: dict[str, str] = {}
+        email = (profile_data.get("email") or "").strip()
+        mobile = (profile_data.get("mobile_phone") or "").strip()
+        if not email:
+            profile_errors["email"] = "Email is required."
+        elif not validate_email(email):
+            profile_errors["email"] = "Invalid email format."
+        if not mobile:
+            profile_errors["mobile_phone"] = "Phone is required."
+        else:
+            normalized = normalize_zimbabwe_mobile(mobile)
+            if not normalized:
+                profile_errors["mobile_phone"] = (
+                    "Invalid Zimbabwean phone number format."
+                )
+            else:
+                profile_data["mobile_phone"] = normalized
+        if profile_errors:
+            raise serializers.ValidationError({"profile": profile_errors})
+        if email:
+            profile_data["email"] = email
+        attrs["profile"] = profile_data
+
         return super().validate(attrs)
 
     @transaction.atomic

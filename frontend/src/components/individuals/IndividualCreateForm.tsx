@@ -26,7 +26,11 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 interface IndividualCreateFormProps {
-  onSuccess: (result: { id: number; name: string }) => void;
+  onSuccess: (result: {
+    id: number;
+    name: string;
+    identification_number?: string;
+  }) => void;
   onCancel: () => void;
 }
 
@@ -64,8 +68,8 @@ export function IndividualCreateForm({
   }, [identificationTypeOptions, setValue, watch]);
 
   const { mutate: submit, isPending } = useMutation({
-    mutationFn: (values: FormValues) =>
-      individualsApi.createIndividual({
+    mutationFn: async (values: FormValues) => {
+      const result = await individualsApi.createIndividual({
         first_name: values.first_name,
         last_name: values.last_name,
         identification_type: values.identification_type,
@@ -80,7 +84,12 @@ export function IndividualCreateForm({
             suburb_id: values.suburb_id,
           },
         ],
-      }),
+      });
+      return {
+        ...result,
+        identification_number: values.identification_number,
+      };
+    },
     onSuccess: (result) => {
       toast.success('Individual created');
       onSuccess(result);

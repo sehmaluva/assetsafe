@@ -18,6 +18,9 @@ interface Props {
   onCreateNew?: (query: string) => void;
   createLabel?: string;
   resolveSelection?: (item: SearchOption) => Promise<number>;
+  /** Parent data still loading (e.g. client users for Data Source). */
+  externalLoading?: boolean;
+  loadingLabel?: string;
 }
 
 export function AutocompleteInput({
@@ -35,6 +38,8 @@ export function AutocompleteInput({
   onCreateNew,
   createLabel = 'Create',
   resolveSelection,
+  externalLoading = false,
+  loadingLabel = 'Fetching...',
 }: Props) {
   const [query, setQuery] = useState(displayLabel ?? '');
   const [showList, setShowList] = useState(false);
@@ -69,12 +74,9 @@ export function AutocompleteInput({
 
   const trimmed = query.trim();
   const showPanel = showList && trimmed.length > 0;
+  const isBusy = isFetching || selecting || externalLoading;
   const isEmptyState =
-    searchEnabled &&
-    !isFetching &&
-    !selecting &&
-    !isError &&
-    items.length === 0;
+    searchEnabled && !isBusy && !isError && items.length === 0;
 
   const handleSelect = async (item: SearchOption) => {
     setSelecting(true);
@@ -135,9 +137,13 @@ export function AutocompleteInput({
             <div className="p-2 text-sm text-slate-500">
               Type at least {minChars} characters to search
             </div>
-          ) : isFetching || selecting ? (
+          ) : isBusy ? (
             <div className="p-2 text-sm text-slate-500">
-              {selecting ? 'Importing...' : 'Searching...'}
+              {selecting
+                ? 'Importing...'
+                : externalLoading
+                  ? loadingLabel
+                  : 'Searching...'}
             </div>
           ) : isError ? (
             <div className="p-2 text-sm text-red-500">

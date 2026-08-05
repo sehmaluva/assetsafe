@@ -170,6 +170,12 @@ class HirePurchaseRegistrationSerializer(serializers.ModelSerializer):
         3. Financier and purchaser must be different users.
         4. Duplicate registrations of the same asset.
         """
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            user = request.user
+            if not user.is_staff and user.client:
+                attrs["financier"] = user.client
+
         # --- 1. Date ordering ---
         start = attrs.get(
             "agreement_start_date",

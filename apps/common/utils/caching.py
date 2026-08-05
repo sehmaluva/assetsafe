@@ -21,7 +21,11 @@ class CacheService:
     """
     DEFAULT_TIMEOUT = settings.CACHES['default'].get('TIMEOUT', 300)
     LONG_CACHE_TIMEOUT = 60 * 60 * 2  # 2 hours
+    HEAVY_CACHE_TIMEOUT = 60 * 60 * 24 * 7  # 7 days — rarely changing lookups
     VERSION_TIMEOUT = 60 * 60 * 24 # Cache versions for a day
+
+    LOOKUPS_INDUSTRY_TAG = "lookups:Industry"
+    CHOICES_COMMON_TAG = "choices:common"
 
     @classmethod
     def _get_version_key(cls, tag: str) -> str:

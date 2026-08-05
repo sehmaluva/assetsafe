@@ -56,10 +56,7 @@ export default function AssetEnquiryPage() {
     onSuccess: (data) => {
       setSearched(true);
       setHits(data.results);
-      setSelected(null);
-      if (data.results.length === 1) {
-        setSelected(data.results[0]);
-      }
+      setSelected(data.results.length > 0 ? data.results[0] : null);
     },
     onError: () => toast.error('Search failed'),
   });
@@ -137,46 +134,6 @@ export default function AssetEnquiryPage() {
           Search
         </Button>
       </div>
-
-      {searched && hits && hits.length > 0 ? (
-        <div className="space-y-2 border-b border-[#8f8f8f] p-4">
-          {hits.map((hit) => (
-            <div
-              key={`${hit.source}-${hit.id}`}
-              className="flex flex-wrap items-end gap-3"
-            >
-              <div className="min-w-[140px] flex-1">
-                <Input
-                  label="Agreement No."
-                  value={hit.agreement_number}
-                  readOnly
-                />
-              </div>
-              <div className="min-w-[140px] flex-1">
-                <Input
-                  label="Reg. Number/Serial No."
-                  value={hit.reg_number_serial}
-                  readOnly
-                />
-              </div>
-              <div className="min-w-[160px] flex-[1.4]">
-                <Input
-                  label="Asset Description"
-                  value={hit.asset_description || 'Make + Model'}
-                  readOnly
-                />
-              </div>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => setSelected(hit)}
-              >
-                View
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : null}
 
       {searched && hits && hits.length === 0 ? (
         <div className="m-4 rounded border border-[#8f8f8f] bg-[#fafafa] p-4 text-sm text-slate-700">

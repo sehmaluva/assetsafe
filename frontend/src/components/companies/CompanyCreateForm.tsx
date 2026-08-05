@@ -2,9 +2,11 @@ import { useForm, useFormState, Controller } from 'react-hook-form';
 import { zodResolver } from '@/lib/zodResolver';
 import { applyApiValidationErrors } from '@/lib/formErrors';
 import { z } from 'zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { companiesApi } from '@/api/companiesApi';
+import { commonApi } from '@/api/commonApi';
+import { queryOptions } from '@/api/queryOptions';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { LocationCascadeSelects } from '@/components/shared/LocationCascadeSelects';
@@ -22,11 +24,12 @@ const schema = z.object({
   registration_number: z.string().min(1, 'Required'),
   registration_name: z.string().min(1, 'Required'),
   trading_name: z.string().min(1, 'Required'),
-  legal_status: z.enum(
-    ['private', 'public', 'government', 'ngo', 'other'],
-    { message: 'Legal status is required' },
-  ),
-  industry: z.string().optional(),
+  legal_status: z.enum(['private', 'public', 'government', 'ngo', 'other'], {
+    message: 'Legal status is required',
+  }),
+  industry: z.string().min(1, 'Industry is required'),
+  email: z.string().email('Valid email is required'),
+  phone: z.string().min(1, 'Phone is required'),
   street_address: z.string().min(1, 'Street address is required'),
   suburb_id: z.coerce.number().min(1, 'Suburb is required'),
 });
@@ -47,10 +50,18 @@ export function CompanyCreateForm({
     mode: 'onSubmit',
     reValidateMode: 'onChange',
     shouldFocusError: true,
-    defaultValues: { legal_status: 'private' },
+    defaultValues: { legal_status: 'private', industry: '' },
   });
 
   const { errors } = useFormState({ control });
+
+  const { data: choices = {} } = useQuery({
+    queryKey: ['common-choices'],
+    queryFn: commonApi.getChoices,
+    ...queryOptions.lists,
+  });
+
+  const industryOptions = choices.Industry ?? [];
 
   const { mutate: submit, isPending } = useMutation({
     mutationFn: (values: FormValues) =>
@@ -60,6 +71,10 @@ export function CompanyCreateForm({
         trading_name: values.trading_name,
         legal_status: values.legal_status,
         industry: values.industry,
+        profile: {
+          email: values.email,
+          mobile_phone: values.phone,
+        },
         addresses: [
           {
             address_type: 'physical',
@@ -117,6 +132,7 @@ export function CompanyCreateForm({
         <div>
           <label className="text-xs font-medium text-slate-600">
             Legal Status
+            <span className="ml-0.5 text-red-500">*</span>
           </label>
           <select
             {...register('legal_status')}
@@ -134,7 +150,42 @@ export function CompanyCreateForm({
             </p>
           ) : null}
         </div>
-        <Input label="Industry" {...register('industry')} />
+        <div>
+          <label className="text-xs font-medium text-slate-600">
+            Industry
+            <span className="ml-0.5 text-red-500">*</span>
+          </label>
+          <select
+            {...register('industry')}
+            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+          >
+            <option value="">Select industry...</option>
+            {industryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.industry?.message ? (
+            <p className="mt-1 text-xs text-red-600">
+              {errors.industry.message}
+            </p>
+          ) : null}
+        </div>
+        <Input
+          label="Email"
+          type="email"
+          {...register('email')}
+          error={errors.email?.message}
+          required
+        />
+        <Input
+          label="Phone"
+          type="tel"
+          {...register('phone')}
+          error={errors.phone?.message}
+          required
+        />
         <Input
           label="Street Address"
           {...register('street_address')}

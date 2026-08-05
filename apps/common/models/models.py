@@ -88,7 +88,7 @@ class CustodyType(models.TextChoices):
 class LookupOption(models.Model):
     """
     DB-backed choice lists for PartyType, BaseAssetType, AssetCondition,
-    and CollateralAssetCategory.
+    CollateralAssetCategory, and Industry.
 
     System rows (``is_system=True``) mirror TextChoices enums and are kept in
     sync by ``apps.common.utils.seed_lookups.seed_system_lookup_options``
@@ -100,11 +100,13 @@ class LookupOption(models.Model):
     CATEGORY_BASE_ASSET_TYPE = "BaseAssetType"
     CATEGORY_ASSET_CONDITION = "AssetCondition"
     CATEGORY_COLLATERAL_ASSET_CATEGORY = "CollateralAssetCategory"
+    CATEGORY_INDUSTRY = "Industry"
     CATEGORY_CHOICES = (
         (CATEGORY_PARTY_TYPE, _("Party Type")),
         (CATEGORY_BASE_ASSET_TYPE, _("Base Asset Type")),
         (CATEGORY_ASSET_CONDITION, _("Asset Condition")),
         (CATEGORY_COLLATERAL_ASSET_CATEGORY, _("Collateral Asset Category")),
+        (CATEGORY_INDUSTRY, _("Industry")),
     )
 
     category = models.CharField(

@@ -4,6 +4,7 @@ import { zodResolver } from '@/lib/zodResolver';
 import {
   applyApiValidationErrors,
   firstFormErrorMessage,
+  getApiErrorMessage,
 } from '@/lib/formErrors';
 import type { FieldErrors } from 'react-hook-form';
 import { z } from 'zod';
@@ -195,7 +196,7 @@ export function CollateralForm({
   const assetConditionOptions = choices.AssetCondition ?? [];
   const selectedFinancierId = watch('financier_id');
 
-  const { data: clientUsers = [] } = useQuery({
+  const { data: clientUsers = [], isLoading: clientUsersLoading } = useQuery({
     queryKey: ['collateral-client-users', selectedFinancierId],
     queryFn: () => clientsApi.listClientUsers(Number(selectedFinancierId)),
     enabled:
@@ -204,6 +205,7 @@ export function CollateralForm({
       !!selectedFinancierId &&
       Number(selectedFinancierId) > 0,
   });
+  const clientUsersBusy = clientUsersLoading;
 
   const { data: clientDetail } = useQuery({
     queryKey: ['collateral-client-detail', selectedFinancierId],
@@ -364,10 +366,7 @@ export function CollateralForm({
       setConfirmingUpdate(false);
       setAddAnother(false);
       if (!applyApiValidationErrors(setError, err)) {
-        const data = (
-          err as { response?: { data?: { message?: string; error?: string } } }
-        )?.response?.data;
-        toast.error(data?.message ?? data?.error ?? 'Failed to save record');
+        toast.error(getApiErrorMessage(err) ?? 'Failed to save record');
       } else {
         toast.error('Please fix the highlighted fields');
       }
@@ -644,9 +643,11 @@ export function CollateralForm({
                     <AutocompleteInput
                       label="Data Source Name"
                       placeholder="Search user under client..."
-                      queryKey={`collateral-data-source-${selectedFinancierId}`}
+                      queryKey={`collateral-data-source-${selectedFinancierId}-${clientUsers.length}`}
                       displayLabel={staffDataSourceSearchLabel}
                       minChars={1}
+                      externalLoading={clientUsersBusy}
+                      loadingLabel="Fetching users..."
                       fetchFn={async (q) => {
                         const term = q.trim().toLowerCase();
                         if (!term) return [];
