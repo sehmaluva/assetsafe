@@ -139,7 +139,12 @@ class AssetEnquiryReportView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
-            report = build_asset_report(data["source"], data["id"])
+            unmasked = bool(
+                request.user.is_staff or request.user.is_superuser
+            )
+            report = build_asset_report(
+                data["source"], data["id"], unmasked=unmasked
+            )
         except Exception as exc:
             logger.exception("Asset enquiry report failed: %s", exc)
             return Response(

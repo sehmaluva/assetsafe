@@ -10,7 +10,7 @@ from django.db.models import Q, QuerySet
 
 from apps.asset_management.models import AssetRegistration
 from apps.collateral.models.models import CollateralRegistration
-from apps.common.models import CustodyType
+from apps.common.models import BaseAssetType, CustodyType
 from apps.enquiries.services.masking import (
     mask_company_name,
     mask_id_reg_display,
@@ -24,6 +24,7 @@ SearchField = Literal[
     "registration_number",
     "chassis_number",
     "engine_number",
+    "stand_number",
 ]
 
 SOURCE_COLLATERAL = "collateral"
@@ -78,6 +79,8 @@ def search_assets(query: str, search_field: SearchField) -> list[EnquiryHit]:
         col_qs = col_qs.filter(_iexact("chassis_number", term))
     elif search_field == "engine_number":
         col_qs = col_qs.filter(_iexact("engine_number", term))
+    elif search_field == "stand_number":
+        col_qs = CollateralRegistration.objects.none()
     else:
         col_qs = CollateralRegistration.objects.none()
 
@@ -107,6 +110,8 @@ def search_assets(query: str, search_field: SearchField) -> list[EnquiryHit]:
         hp_qs = hp_qs.filter(_iexact("chassis_number", term))
     elif search_field == "engine_number":
         hp_qs = hp_qs.filter(_iexact("engine_number", term))
+    elif search_field == "stand_number":
+        hp_qs = HirePurchaseRegistration.objects.none()
     else:
         hp_qs = HirePurchaseRegistration.objects.none()
 
@@ -123,35 +128,81 @@ def search_assets(query: str, search_field: SearchField) -> list[EnquiryHit]:
         )
 
     # --- Asset Registry (show all subscriptions for enquiry) ---
-    ar_qs: QuerySet[AssetRegistration] = AssetRegistration.objects.all()
+    ar_qs: QuerySet[AssetRegistration] = AssetRegistration.objects.select_related(
+        "vehicle",
+        "mobile",
+        "land",
+        "land__suburb",
+        "land__city",
+    )
     if search_field == "agreement_number":
         ar_qs = ar_qs.filter(_iexact("registration_number", term))
     elif search_field == "serial_number":
         ar_qs = ar_qs.filter(_iexact("serial_number", term))
     elif search_field == "registration_number":
-        ar_qs = ar_qs.filter(_iexact("mv_registration_number", term))
+        ar_qs = ar_qs.filter(_iexact("vehicle__mv_registration_number", term))
     elif search_field == "chassis_number":
-        ar_qs = ar_qs.filter(_iexact("chassis_number", term))
+        ar_qs = ar_qs.filter(_iexact("vehicle__chassis_number", term))
     elif search_field == "engine_number":
-        ar_qs = ar_qs.filter(_iexact("engine_number", term))
+        ar_qs = ar_qs.filter(_iexact("vehicle__engine_number", term))
+    elif search_field == "stand_number":
+        ar_qs = ar_qs.filter(_iexact("land__stand_number", term))
     else:
         ar_qs = AssetRegistration.objects.none()
 
     for row in ar_qs.select_related(
         "individual_owner", "company_owner", "company_owner__company"
     )[:25]:
-        reg_or_serial = row.mv_registration_number or row.serial_number or ""
+        reg_or_serial = _asset_reg_or_serial(row)
         hits.append(
             EnquiryHit(
                 source=SOURCE_ASSET_REGISTRY,
                 record_id=row.pk,
                 agreement_number=row.registration_number or "",
                 reg_or_serial=reg_or_serial,
-                description=_description(row.make, row.model),
+                description=_asset_description(row),
             )
         )
 
     return hits
+
+
+def _asset_description(row: AssetRegistration) -> str:
+    if row.asset_category == BaseAssetType.LAND:
+        return row.asset_type or "Stand"
+    return _description(row.make, row.model)
+
+
+def _asset_reg_or_serial(row: AssetRegistration) -> str:
+    if row.asset_category == BaseAssetType.VEHICLES:
+        vehicle = getattr(row, "vehicle", None)
+        return vehicle.mv_registration_number if vehicle else ""
+    if row.asset_category == BaseAssetType.MOBILES:
+        mobile = getattr(row, "mobile", None)
+        return mobile.imei if mobile else ""
+    if row.asset_category == BaseAssetType.LAND:
+        land = getattr(row, "land", None)
+        return land.stand_number if land else ""
+    return row.serial_number or ""
+
+
+def _owner_from_individual(individual, *, unmasked: bool) -> tuple[str, str]:
+    if unmasked:
+        return str(individual), individual.identification_number or ""
+    return _owner_masked_from_individual(individual)
+
+
+def _owner_from_company_branch(branch, *, unmasked: bool) -> tuple[str, str]:
+    if unmasked:
+        company = getattr(branch, "company", None)
+        name = (
+            (company.trading_name or company.registration_name)
+            if company
+            else str(branch)
+        )
+        reg_no = getattr(company, "registration_number", None) if company else None
+        return name, reg_no or ""
+    return _owner_masked_from_company_branch(branch)
 
 
 def _owner_masked_from_individual(individual) -> tuple[str, str]:
@@ -189,12 +240,39 @@ def _party_from_hp(row: HirePurchaseRegistration) -> tuple[str, str]:
     return "", ""
 
 
-def _party_from_asset(row: AssetRegistration) -> tuple[str, str]:
+def _party_from_asset(row: AssetRegistration, *, unmasked: bool = False) -> tuple[str, str]:
     if row.owner_type == "individual" and row.individual_owner:
-        return _owner_masked_from_individual(row.individual_owner)
+        return _owner_from_individual(row.individual_owner, unmasked=unmasked)
     if row.company_owner:
-        return _owner_masked_from_company_branch(row.company_owner)
+        return _owner_from_company_branch(row.company_owner, unmasked=unmasked)
     return "", ""
+
+
+def _purchaser_from_sale(sale, *, unmasked: bool) -> tuple[str, str]:
+    if sale.purchaser_type == "individual" and sale.individual_purchaser:
+        return _owner_from_individual(sale.individual_purchaser, unmasked=unmasked)
+    if sale.company_purchaser:
+        return _owner_from_company_branch(sale.company_purchaser, unmasked=unmasked)
+    return "", ""
+
+
+def _land_report_fields(row: AssetRegistration) -> dict[str, Any]:
+    land = getattr(row, "land", None)
+    if not land:
+        return {
+            "is_land": False,
+            "area_development": "",
+            "stand_number": "",
+            "stand_size": "",
+            "city_town": "",
+        }
+    return {
+        "is_land": True,
+        "area_development": land.suburb.name if land.suburb_id else "",
+        "stand_number": land.stand_number,
+        "stand_size": land.stand_size_display,
+        "city_town": land.city.name if land.city_id else "",
+    }
 
 
 def _format_money(currency_code: str | None, amount: Decimal | None) -> str | None:
@@ -275,7 +353,9 @@ def _find_open_hp_for_identifiers(
     )
 
 
-def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
+def build_asset_report(
+    source: str, record_id: int, *, unmasked: bool = False
+) -> dict[str, Any]:
     """
     Build a masked Asset Enquiry report.
 
@@ -360,16 +440,23 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
                 "company_custodian",
                 "company_custodian__company",
                 "currency",
+                "vehicle",
+                "mobile",
+                "land",
+                "land__city",
+                "land__suburb",
             ).get(pk=record_id)
         )
-        owner_name, owner_id_reg = _party_from_asset(row)
+        owner_name, owner_id_reg = _party_from_asset(row, unmasked=unmasked)
+        vehicle = getattr(row, "vehicle", None)
         base = {
             "source": source,
             "record_id": record_id,
-            "asset_description": _description(row.make, row.model),
-            "reg_number_serial": row.mv_registration_number or row.serial_number or "",
-            "chassis_number": row.chassis_number or "",
-            "engine_number": row.engine_number or "",
+            "asset_category": row.asset_category,
+            "asset_description": _asset_description(row),
+            "reg_number_serial": _asset_reg_or_serial(row),
+            "chassis_number": vehicle.chassis_number if vehicle else "",
+            "engine_number": vehicle.engine_number if vehicle else "",
             "owner_masked": owner_name,
             "id_reg_masked": owner_id_reg,
             "financier": None,
@@ -378,13 +465,17 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
             "custodian_name_masked": None,
             "custodian_id_reg_masked": None,
             "expected_encumbrance_end": None,
+            "purchaser_masked": None,
+            "purchaser_id_reg_masked": None,
+            "sale_date": None,
+            **_land_report_fields(row),
         }
 
         identifiers = dict(
-            chassis=row.chassis_number or "",
-            engine=row.engine_number or "",
+            chassis=vehicle.chassis_number if vehicle else "",
+            engine=vehicle.engine_number if vehicle else "",
             serial=row.serial_number or "",
-            registration=row.mv_registration_number or "",
+            registration=vehicle.mv_registration_number if vehicle else "",
         )
         collateral = _find_open_collateral_for_identifiers(**identifiers)
         if collateral:
@@ -449,6 +540,23 @@ def build_asset_report(source: str, record_id: int) -> dict[str, Any]:
                     "encumbrance_details": f"Under Custody - {custody_label}",
                     "custodian_name_masked": custodian_name,
                     "custodian_id_reg_masked": custodian_id_reg,
+                }
+            )
+            return base
+
+        open_sale = row.get_open_sale_transition()
+        if open_sale:
+            purchaser_name, purchaser_id = _purchaser_from_sale(
+                open_sale, unmasked=unmasked
+            )
+            base.update(
+                {
+                    "status": "sold",
+                    "encumbrance_kind": None,
+                    "encumbrance_details": None,
+                    "purchaser_masked": purchaser_name,
+                    "purchaser_id_reg_masked": purchaser_id,
+                    "sale_date": open_sale.sale_date.strftime("%d-%b-%y"),
                 }
             )
             return base

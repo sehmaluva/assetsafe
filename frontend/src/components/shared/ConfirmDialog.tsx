@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { Modal } from './Modal';
 import { Button } from '@/components/ui/button';
 
@@ -37,7 +38,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!open) return null;
 
-  return (
+  return createPortal(
     <Modal
       open={open}
       onClose={loading ? () => {} : onCancel}
@@ -70,6 +71,7 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </Modal>
+    </Modal>,
+    document.body,
   );
 }

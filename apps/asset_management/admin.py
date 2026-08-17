@@ -1,5 +1,31 @@
 from django.contrib import admin
-from .models import AssetRegistration
+
+from apps.asset_management.models import (
+    AssetOwnershipEvent,
+    AssetRegistration,
+    LandDetails,
+    MobileDetails,
+    StandSaleTransition,
+    VehicleDetails,
+)
+
+
+class VehicleDetailsInline(admin.StackedInline):
+    model = VehicleDetails
+    extra = 0
+    max_num = 1
+
+
+class MobileDetailsInline(admin.StackedInline):
+    model = MobileDetails
+    extra = 0
+    max_num = 1
+
+
+class LandDetailsInline(admin.StackedInline):
+    model = LandDetails
+    extra = 0
+    max_num = 1
 
 
 @admin.register(AssetRegistration)
@@ -23,6 +49,9 @@ class AssetRegistrationAdmin(admin.ModelAdmin):
         "company_owner__branch_name",
         "company_owner__company__registration_name",
         "company_owner__company__trading_name",
+        "vehicle__mv_registration_number",
+        "land__stand_number",
+        "mobile__imei",
         "make",
         "model",
     )
@@ -34,15 +63,11 @@ class AssetRegistrationAdmin(admin.ModelAdmin):
         "created_by",
         "updated_by",
     )
+    inlines = [VehicleDetailsInline, MobileDetailsInline, LandDetailsInline]
     fieldsets = (
         (
             "Registration",
-            {
-                "fields": (
-                    "registration_number",
-                    "lodge_date",
-                )
-            },
+            {"fields": ("registration_number", "lodge_date")},
         ),
         (
             "Owner Information",
@@ -65,16 +90,6 @@ class AssetRegistrationAdmin(admin.ModelAdmin):
                     "model",
                     "year_of_make",
                     "condition",
-                )
-            },
-        ),
-        (
-            "Vehicle Information (if applicable)",
-            {
-                "fields": (
-                    "mv_registration_number",
-                    "chassis_number",
-                    "engine_number",
                 )
             },
         ),
@@ -119,3 +134,21 @@ class AssetRegistrationAdmin(admin.ModelAdmin):
         if obj.company_owner:
             return str(obj.company_owner)
         return "-"
+
+
+@admin.register(StandSaleTransition)
+class StandSaleTransitionAdmin(admin.ModelAdmin):
+    list_display = (
+        "asset",
+        "purchaser_type",
+        "sale_date",
+        "terms",
+        "is_completed",
+    )
+    list_filter = ("is_completed", "terms", "sale_date")
+
+
+@admin.register(AssetOwnershipEvent)
+class AssetOwnershipEventAdmin(admin.ModelAdmin):
+    list_display = ("asset", "event_type", "date_created")
+    list_filter = ("event_type",)

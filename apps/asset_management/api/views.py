@@ -29,6 +29,10 @@ from .serializers import (
     AssetRegistrationSerializer,
     AssetRegistrationListSerializer,
     AssetRegistryDashboardSerializer,
+    OwnershipChangeWriteSerializer,
+    StandSaleTransitionWriteSerializer,
+    record_ownership_change,
+    record_sale_transition,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +95,11 @@ class AssetRegistrationViewSet(BaseViewSet):
         "company_owner__company__registration_name",
         "company_owner__company__trading_name",
         "serial_number",
-        "mv_registration_number",
+        "vehicle__mv_registration_number",
+        "vehicle__chassis_number",
+        "vehicle__engine_number",
+        "mobile__imei",
+        "land__stand_number",
         "make",
         "model",
     ]
@@ -132,7 +140,17 @@ class AssetRegistrationViewSet(BaseViewSet):
                 "individual_custodian",
                 "company_custodian",
                 "company_custodian__company",
-            ).all()
+                "currency",
+                "vehicle",
+                "mobile",
+                "land",
+                "land__city",
+                "land__suburb",
+            )
+            .prefetch_related(
+                "sale_transitions",
+            )
+            .all()
         )
 
         show_all: bool = (
@@ -224,6 +242,95 @@ class AssetRegistrationViewSet(BaseViewSet):
     # ------------------------------------------------------------------
     # Custom actions
     # ------------------------------------------------------------------
+
+    @action(detail=True, methods=["post"], url_path="sale-transition")
+    def sale_transition(self, request: Request, pk=None) -> Response:
+        try:
+            instance = self.get_object()
+            serializer = StandSaleTransitionWriteSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            sale = record_sale_transition(
+                instance,
+                purchaser_type=data["purchaser_type"],
+                individual_purchaser=data.get("individual_purchaser"),
+                company_purchaser=data.get("company_purchaser"),
+                sale_date=data["sale_date"],
+                terms=data["terms"],
+                valuation_type=data["valuation_type"],
+                title_status=data["title_status"],
+                currency=data.get("currency"),
+                value_amount=data["value_amount"],
+                user=request.user,
+            )
+            invalidate_registry_caches(
+                registries=[ASSET_REGISTRY], record_pk=instance.pk
+            )
+            instance.refresh_from_db()
+            detail = AssetRegistrationSerializer(
+                instance, context={"request": request}
+            )
+            return self._create_rendered_response(
+                {
+                    "asset": detail.data,
+                    "sale_transition_id": sale.pk,
+                }
+            )
+        except ValueError as e:
+            return self._create_rendered_response(
+                {"error": str(e)}, status.HTTP_400_BAD_REQUEST
+            )
+        except ValidationError as e:
+            return self._create_rendered_response(
+                {"error": extract_error_message(e)}, status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error recording sale transition: {e}")
+            return self._create_rendered_response(
+                {"error": "Something went wrong"},
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"], url_path="ownership-change")
+    def ownership_change(self, request: Request, pk=None) -> Response:
+        try:
+            instance = self.get_object()
+            serializer = OwnershipChangeWriteSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            record_ownership_change(
+                instance,
+                owner_type=data["owner_type"],
+                individual_owner=data.get("individual_owner"),
+                company_owner=data.get("company_owner"),
+                valuation_type=data.get("valuation_type", ""),
+                title_status=data.get("title_status", ""),
+                terms=data.get("terms", ""),
+                value_amount=data.get("value_amount"),
+                user=request.user,
+            )
+            invalidate_registry_caches(
+                registries=[ASSET_REGISTRY], record_pk=instance.pk
+            )
+            instance.refresh_from_db()
+            detail = AssetRegistrationSerializer(
+                instance, context={"request": request}
+            )
+            return self._create_rendered_response(detail.data)
+        except ValueError as e:
+            return self._create_rendered_response(
+                {"error": str(e)}, status.HTTP_400_BAD_REQUEST
+            )
+        except ValidationError as e:
+            return self._create_rendered_response(
+                {"error": extract_error_message(e)}, status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error recording ownership change: {e}")
+            return self._create_rendered_response(
+                {"error": "Something went wrong"},
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @CacheService.cached(tag_prefix="asset-registry:stats")
     @action(detail=False, methods=["get"], url_path="stats")

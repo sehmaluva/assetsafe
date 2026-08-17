@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/shared/Modal';
 import { AssetRegistryForm } from './AssetRegistryForm';
+import { StandViewReport } from './StandViewReport';
+import {
+  StandOwnershipChangeForm,
+  StandSaleTransitionForm,
+} from './StandWorkflowForms';
 import type { AssetRecord } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { assetTypeLabel } from '@/lib/assetTypes';
@@ -17,28 +22,86 @@ interface AssetViewModalProps {
   onDeleted: () => void;
 }
 
+type StandPanel = 'view' | 'ownership' | 'sale';
+
 export function AssetViewModal({
   record,
   onClose,
   onSaved,
   onDeleted,
 }: AssetViewModalProps) {
+  const queryClient = useQueryClient();
   const [editMode, setEditMode] = useState(false);
+  const [standPanel, setStandPanel] = useState<StandPanel>('view');
+  const isLand = record.asset_category === 'land';
 
-  const { data: detail } = useQuery({
+  const { data: detail, refetch } = useQuery({
     queryKey: ['asset-detail', record.id],
     queryFn: () => assetRegistryApi.getRecord(record.id),
     staleTime: 5 * 60 * 1000,
   });
 
+  const refreshDetail = () => {
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ['asset-detail', record.id] });
+  };
+
+  const handleStandSaved = () => {
+    setStandPanel('view');
+    refreshDetail();
+    onSaved();
+  };
+
   return (
     <Modal
       open
       onClose={onClose}
-      title={`Asset — ${record.registration_number}`}
+      title={
+        isLand
+          ? `Stand — ${record.registration_number}`
+          : `Asset — ${record.registration_number}`
+      }
       size="xl"
     >
-      {editMode ? (
+      {isLand && !editMode ? (
+        <>
+          {standPanel === 'view' && detail ? (
+            <StandViewReport
+              detail={detail}
+              onOwnershipChange={() => setStandPanel('ownership')}
+              onSaleTransition={() => setStandPanel('sale')}
+              onPrint={() => window.print()}
+            />
+          ) : null}
+          {standPanel === 'ownership' && detail ? (
+            <StandOwnershipChangeForm
+              record={record}
+              detail={detail}
+              onSuccess={handleStandSaved}
+              onCancel={() => setStandPanel('view')}
+            />
+          ) : null}
+          {standPanel === 'sale' && detail ? (
+            <StandSaleTransitionForm
+              record={record}
+              detail={detail}
+              onSuccess={handleStandSaved}
+              onCancel={() => setStandPanel('view')}
+            />
+          ) : null}
+          {standPanel === 'view' ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-3">
+              <DeleteRecordButton
+                onDelete={() => assetRegistryApi.deleteRecord(record.id)}
+                onDeleted={onDeleted}
+              />
+              <Button variant="ghost" onClick={onClose}>
+                Close
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : editMode ? (
         detail ? (
           <AssetRegistryForm
             isEdit
@@ -57,6 +120,7 @@ export function AssetViewModal({
               mv_registration_no: detail.mv_registration_no,
               chassis_number: detail.chassis_number,
               engine_number: detail.engine_number,
+              imei: detail.imei,
               serial_number: detail.serial_number,
               currency: detail.currency,
               estimated_value: detail.estimated_value,
@@ -85,29 +149,24 @@ export function AssetViewModal({
               ],
               [
                 'Asset Category',
-                assetTypeLabel(
-                  detail?.asset_category ?? record.asset_category,
-                ),
+                assetTypeLabel(detail?.asset_category ?? record.asset_category),
               ],
-              [
-                'Asset Type',
-                detail?.asset_type || record.asset_type || '—',
-              ],
+              ['Asset Type', detail?.asset_type || record.asset_type || '—'],
               ['Year', detail?.year_of_make ?? record.year_of_make],
               ['Condition', detail?.condition ?? record.condition],
               [
-                'Reg/Serial',
+                'Reg/Serial/Stand',
                 detail?.serial_number ||
+                  detail?.stand_number ||
                   detail?.mv_registration_no ||
+                  detail?.imei ||
                   record.serial_number ||
                   record.mv_registration_no,
               ],
               ['Currency', detail?.currency ?? record.currency],
               [
                 'Est. Value',
-                formatCurrency(
-                  detail?.estimated_value ?? record.estimated_value,
-                ),
+                formatCurrency(detail?.estimated_value ?? record.estimated_value),
               ],
               ['Location', detail?.location_address ?? record.location_address],
               [

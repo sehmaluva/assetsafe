@@ -41,10 +41,15 @@ def list_lookup_choices(category: str) -> list[dict[str, str]]:
     return rows
 
 
+def invalidate_common_choices_cache() -> None:
+    """Bump the /common/choices/ cache version."""
+    CacheService.invalidate_tag(CacheService.CHOICES_COMMON_TAG)
+
+
 def invalidate_industry_lookup_cache() -> None:
     """Bump Industry lookup + common choices cache versions."""
     CacheService.invalidate_tag(CacheService.LOOKUPS_INDUSTRY_TAG)
-    CacheService.invalidate_tag(CacheService.CHOICES_COMMON_TAG)
+    invalidate_common_choices_cache()
 
 
 def ensure_valid_lookup_value(category: str, value: str | None, *, field: str) -> str:

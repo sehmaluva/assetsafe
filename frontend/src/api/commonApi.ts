@@ -22,6 +22,9 @@ export interface CommonChoicesResponse {
   IdentificationType?: ChoiceOption[];
   LegalStatus?: ChoiceOption[];
   Industry?: ChoiceOption[];
+  ValuationType?: ChoiceOption[];
+  TitleStatus?: ChoiceOption[];
+  SaleTerms?: ChoiceOption[];
 }
 
 export type ManagedChoiceCategory =

@@ -85,6 +85,28 @@ class CustodyType(models.TextChoices):
     EMPLOYEE = "employee", _("Employee")
 
 
+class ValuationType(models.TextChoices):
+    """How a stand/land asset value was determined (1416)."""
+
+    PURCHASE_PRICE = "purchase_price", _("Purchase Price")
+    ESTIMATED_VALUE = "estimated_value", _("Estimated Value")
+    PROFESSIONAL_VALUATION = "professional_valuation", _("Professional Valuation")
+
+
+class TitleStatus(models.TextChoices):
+    """Title documentation status for land/stand assets (1416)."""
+
+    DEEDS = "deeds", _("Deeds")
+    PURCHASE_AGREEMENT = "purchase_agreement", _("Purchase Agreement")
+
+
+class SaleTerms(models.TextChoices):
+    """Payment terms recorded on a stand sale transition (1417)."""
+
+    CASH = "cash", _("Cash")
+    INSTALLMENTS = "installments", _("Installments")
+
+
 class LookupOption(models.Model):
     """
     DB-backed choice lists for PartyType, BaseAssetType, AssetCondition,
@@ -101,12 +123,18 @@ class LookupOption(models.Model):
     CATEGORY_ASSET_CONDITION = "AssetCondition"
     CATEGORY_COLLATERAL_ASSET_CATEGORY = "CollateralAssetCategory"
     CATEGORY_INDUSTRY = "Industry"
+    CATEGORY_VALUATION_TYPE = "ValuationType"
+    CATEGORY_TITLE_STATUS = "TitleStatus"
+    CATEGORY_SALE_TERMS = "SaleTerms"
     CATEGORY_CHOICES = (
         (CATEGORY_PARTY_TYPE, _("Party Type")),
         (CATEGORY_BASE_ASSET_TYPE, _("Base Asset Type")),
         (CATEGORY_ASSET_CONDITION, _("Asset Condition")),
         (CATEGORY_COLLATERAL_ASSET_CATEGORY, _("Collateral Asset Category")),
         (CATEGORY_INDUSTRY, _("Industry")),
+        (CATEGORY_VALUATION_TYPE, _("Valuation Type")),
+        (CATEGORY_TITLE_STATUS, _("Title Status")),
+        (CATEGORY_SALE_TERMS, _("Sale Terms")),
     )
 
     category = models.CharField(
@@ -191,6 +219,8 @@ class Document(BaseModel):
         ("id", "Identification"),
         ("proof_of_address", "Proof of Address"),
         ("contract", "Contract"),
+        ("title_deed", "Title Deed"),
+        ("purchase_agreement", "Purchase Agreement"),
         ("other", "Other"),
     )
 

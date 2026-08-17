@@ -11,6 +11,7 @@ COMMANDS=(
     "seed_locations"
     "seed_currencies"
     "seed_roles"
+    "seed_lookups"
 )
 
 # Function to run a Django management command

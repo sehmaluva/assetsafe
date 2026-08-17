@@ -22,7 +22,11 @@ import { FormSectionHeader } from '@/components/shared/FormSectionHeader';
 import { FieldError } from '@/components/shared/FieldError';
 import { commonApi } from '@/api/commonApi';
 import { queryOptions } from '@/api/queryOptions';
+import { useCommonChoices } from '@/hooks/useCommonChoices';
+import { toBackendAssetType } from '@/lib/assetTypes';
 import type { SearchOption } from '@/lib/searchResults';
+
+const LAND_ASSET_TYPES = ['Stand', 'Plot', 'Land'];
 
 const schema = z
   .object({
@@ -33,17 +37,24 @@ const schema = z
     owner_asset_number: z.string().optional(),
     asset_category: z.string().min(1, 'Select asset category'),
     asset_type: z.string().min(1, 'Asset type is required'),
-    asset_make: z.string().min(1, 'Required'),
-    asset_model: z.string().min(1, 'Required'),
-    year_of_make: z.coerce.number().min(1900).max(2100),
-    condition: z.string().min(1, 'Select condition'),
+    asset_make: z.string().optional(),
+    asset_model: z.string().optional(),
+    year_of_make: z.coerce.number().optional(),
+    condition: z.string().optional(),
     mv_registration_no: z.string().optional(),
     chassis_number: z.string().optional(),
     engine_number: z.string().optional(),
+    imei: z.string().optional(),
     serial_number: z.string().optional(),
+    suburb_id: z.coerce.number().optional(),
+    stand_address: z.string().optional(),
+    stand_number: z.string().optional(),
+    stand_size: z.string().optional(),
+    valuation_type: z.string().optional(),
+    title_status: z.string().optional(),
     currency: z.string().min(1, 'Currency is required'),
     estimated_value: z.coerce.number().min(0),
-    location_address: z.string().min(1, 'Required'),
+    location_address: z.string().optional(),
     subscription_start_date: z.string().min(1, 'Required'),
     subscription_end_date: z.string().min(1, 'Required'),
     under_custody: z.boolean().optional(),
@@ -59,6 +70,76 @@ const schema = z
     guarantor_identification: z.string().optional(),
   })
   .superRefine((data, ctx) => {
+    const isLand = toBackendAssetType(data.asset_category) === 'land';
+
+    if (isLand) {
+      if (!data.suburb_id || data.suburb_id < 1) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Suburb/Area/Development is required',
+          path: ['suburb_id'],
+        });
+      }
+      if (!data.stand_number?.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Stand number is required',
+          path: ['stand_number'],
+        });
+      }
+      if (!data.valuation_type) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Valuation type is required',
+          path: ['valuation_type'],
+        });
+      }
+      if (!data.title_status) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Title status is required',
+          path: ['title_status'],
+        });
+      }
+      return;
+    }
+
+    if (!data.asset_make?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Required',
+        path: ['asset_make'],
+      });
+    }
+    if (!data.asset_model?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Required',
+        path: ['asset_model'],
+      });
+    }
+    if (!data.year_of_make || data.year_of_make < 1900 || data.year_of_make > 2100) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Year of make is required',
+        path: ['year_of_make'],
+      });
+    }
+    if (!data.condition) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select condition',
+        path: ['condition'],
+      });
+    }
+    if (!data.location_address?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Required',
+        path: ['location_address'],
+      });
+    }
+
     if (!data.under_custody) return;
     if (!data.custodian_type) {
       ctx.addIssue({
@@ -152,11 +233,7 @@ export function AssetRegistryForm({
     queryFn: commonApi.getCurrencies,
     ...queryOptions.static,
   });
-  const { data: choices = {} } = useQuery({
-    queryKey: ['common-choices'],
-    queryFn: commonApi.getChoices,
-    ...queryOptions.lists,
-  });
+  const { data: choices } = useCommonChoices();
 
   const CUSTODY_TYPE_FALLBACK = [
     { value: 'rental', label: 'Rental' },
@@ -290,7 +367,24 @@ export function AssetRegistryForm({
   }, [partyTypeOptions, setValue, currentOwnerType]);
 
   const watchAssetCategory = watch('asset_category');
-  const isVehicle = watchAssetCategory === 'vehicles';
+  const category = toBackendAssetType(watchAssetCategory);
+  const isVehicle = category === 'vehicles';
+  const isMobile = category === 'mobiles';
+  const isLand = category === 'land';
+
+  const valuationOptions = choices.ValuationType ?? [];
+  const titleStatusOptions = choices.TitleStatus ?? [];
+
+  useEffect(() => {
+    if (!isLand || isEdit) return;
+    const currentType = watch('asset_type');
+    if (!currentType || !LAND_ASSET_TYPES.includes(currentType)) {
+      setValue('asset_type', 'Stand', { shouldValidate: true });
+    }
+    if (underCustody) {
+      setValue('under_custody', false);
+    }
+  }, [isLand, isEdit, setValue, underCustody, watch]);
 
   const { data: suburbsWithHierarchy = [] } = useQuery({
     queryKey: ['loc-suburbs-view'],
@@ -355,7 +449,10 @@ export function AssetRegistryForm({
         className="bg-white"
         noValidate
       >
-        <FormSectionHeader title="Owner Details" variant="teal" />
+        <FormSectionHeader
+          title={isLand ? 'Seller Details' : 'Owner Details'}
+          variant="teal"
+        />
         {!isEdit && (
           <div className="flex gap-2 px-4 pt-2 pb-1">
             <Button
@@ -447,8 +544,11 @@ export function AssetRegistryForm({
           />
         </div>
 
-        {/* ── Asset Details ── */}
-        <FormSectionHeader title="Asset Details" variant="dark" />
+        {/* ── Asset / Stand Details ── */}
+        <FormSectionHeader
+          title={isLand ? 'Stand Details' : 'Asset Details'}
+          variant="dark"
+        />
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
           <div>
             <label className="text-xs font-medium text-slate-600">
@@ -457,7 +557,7 @@ export function AssetRegistryForm({
             <select
               {...register('asset_category')}
               className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!assetCategoryOptions.length}
+              disabled={!assetCategoryOptions.length || isEdit}
             >
               <option value="">
                 {assetCategoryOptions.length
@@ -472,73 +572,166 @@ export function AssetRegistryForm({
             </select>
             <FieldError message={errors.asset_category?.message} />
           </div>
-          <Input
-            label="Asset Type"
-            {...register('asset_type')}
-            error={errors.asset_type?.message}
-            required
-          />
-          <Input
-            label="Make"
-            {...register('asset_make')}
-            error={errors.asset_make?.message}
-            required
-          />
-          <Input
-            label="Model"
-            {...register('asset_model')}
-            error={errors.asset_model?.message}
-            required
-          />
-          <Input
-            label="Year of Make"
-            type="number"
-            {...register('year_of_make', { valueAsNumber: true })}
-            error={errors.year_of_make?.message}
-          />
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Condition
-            </label>
-            <select
-              {...register('condition')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!assetConditionOptions.length}
-            >
-              <option value="">
-                {assetConditionOptions.length ? 'Select...' : 'Loading...'}
-              </option>
-              {assetConditionOptions.map((c: any) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Input
-            label="MV Registration No."
-            {...register('mv_registration_no')}
-            disabled={!isVehicle}
-            className={!isVehicle ? 'bg-slate-100' : ''}
-          />
-          <Input
-            label="Chassis Number"
-            {...register('chassis_number')}
-            disabled={!isVehicle}
-            className={!isVehicle ? 'bg-slate-100' : ''}
-          />
-          <Input
-            label="Engine Number"
-            {...register('engine_number')}
-            disabled={!isVehicle}
-            className={!isVehicle ? 'bg-slate-100' : ''}
-          />
-          <Input label="Serial Number" {...register('serial_number')} />
+
+          {isLand ? (
+            <>
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Asset Description<span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <select
+                  {...register('asset_type')}
+                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+                >
+                  {LAND_ASSET_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+                <FieldError message={errors.asset_type?.message} />
+              </div>
+              <div className="col-span-full">
+                <Controller
+                  name="suburb_id"
+                  control={control}
+                  render={({ field }) => (
+                    <LocationCascadeSelects
+                      value={field.value}
+                      onChange={(id) => field.onChange(id > 0 ? id : undefined)}
+                      error={errors.suburb_id?.message}
+                    />
+                  )}
+                />
+              </div>
+              <Input label="Stand Address" {...register('stand_address')} />
+              <Input
+                label="Stand Number"
+                {...register('stand_number')}
+                error={errors.stand_number?.message}
+                required
+              />
+              <Input
+                label="Stand Size (sq.m)"
+                {...register('stand_size')}
+                placeholder="e.g. 1200"
+              />
+            </>
+          ) : (
+            <>
+              <Input
+                label="Asset Type"
+                {...register('asset_type')}
+                error={errors.asset_type?.message}
+                required
+              />
+              <Input
+                label="Make"
+                {...register('asset_make')}
+                error={errors.asset_make?.message}
+                required
+              />
+              <Input
+                label="Model"
+                {...register('asset_model')}
+                error={errors.asset_model?.message}
+                required
+              />
+              <Input
+                label="Year of Make"
+                type="number"
+                {...register('year_of_make', { valueAsNumber: true })}
+                error={errors.year_of_make?.message}
+              />
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Condition
+                </label>
+                <select
+                  {...register('condition')}
+                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+                  disabled={!assetConditionOptions.length}
+                >
+                  <option value="">
+                    {assetConditionOptions.length ? 'Select...' : 'Loading...'}
+                  </option>
+                  {assetConditionOptions.map((c: any) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {isVehicle ? (
+                <>
+                  <Input
+                    label="MV Registration No."
+                    {...register('mv_registration_no')}
+                  />
+                  <Input
+                    label="Chassis Number"
+                    {...register('chassis_number')}
+                  />
+                  <Input
+                    label="Engine Number"
+                    {...register('engine_number')}
+                  />
+                </>
+              ) : null}
+              {isMobile ? (
+                <Input
+                  label="IMEI"
+                  {...register('imei')}
+                  error={errors.imei?.message}
+                />
+              ) : (
+                <Input label="Serial Number" {...register('serial_number')} />
+              )}
+            </>
+          )}
         </div>
 
         {/* ── Valuation & Subscription ── */}
         <FormSectionHeader title="Valuation & Subscription" variant="teal" />
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+          {isLand ? (
+            <>
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Valuation Type<span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <select
+                  {...register('valuation_type')}
+                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+                >
+                  <option value="">Select...</option>
+                  {valuationOptions.map((o: any) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <FieldError message={errors.valuation_type?.message} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600">
+                  Title Status<span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <select
+                  {...register('title_status')}
+                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
+                >
+                  <option value="">Select...</option>
+                  {titleStatusOptions.map((o: any) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <FieldError message={errors.title_status?.message} />
+              </div>
+            </>
+          ) : null}
           <div>
             <label className="text-xs font-medium text-slate-600">
               Currency<span className="text-red-500 ml-0.5">*</span>
@@ -561,22 +754,24 @@ export function AssetRegistryForm({
             </select>
           </div>
           <Input
-            label="Estimated Value"
+            label={isLand ? 'Value Amount' : 'Estimated Value'}
             type="number"
             step="0.01"
             {...register('estimated_value')}
             error={errors.estimated_value?.message}
             required
           />
-          <div className="col-span-2">
-            <Input
-              label="Location Address"
-              {...register('location_address')}
-              error={errors.location_address?.message}
-              placeholder="Primary location of asset"
-              required
-            />
-          </div>
+          {!isLand ? (
+            <div className="col-span-2">
+              <Input
+                label="Location Address"
+                {...register('location_address')}
+                error={errors.location_address?.message}
+                placeholder="Primary location of asset"
+                required
+              />
+            </div>
+          ) : null}
           <Controller
             name="subscription_start_date"
             control={control}
@@ -607,6 +802,8 @@ export function AssetRegistryForm({
           />
         </div>
 
+        {!isLand ? (
+          <>
         {/* ── Custody Details ── */}
         <FormSectionHeader title="Custody Details" variant="dark" />
         <div className="space-y-3 p-4">
@@ -805,6 +1002,8 @@ export function AssetRegistryForm({
             </div>
           ) : null}
         </div>
+          </>
+        ) : null}
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-3">
