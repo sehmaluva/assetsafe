@@ -17,30 +17,54 @@ export function AssetEnquiryReportPanel({
 }: {
   report: AssetEnquiryReport;
 }) {
+  const isSold = report.status === 'sold';
   const isClear = report.status === 'clear';
-  const statusLabel = isClear
-    ? 'Asset Status - Clear'
-    : 'Asset Status - Encumbered';
-  const statusClass = isClear ? 'bg-[#2e7d32]' : 'bg-[#c62828]';
+  const isEncumbered = report.status === 'encumbered';
+
+  const statusLabel = isSold
+    ? 'Status - Sold'
+    : isClear
+      ? 'Asset Status - Clear'
+      : 'Asset Status - Encumbered';
+
+  const statusClass = isSold
+    ? 'bg-[#ef6c00]'
+    : isClear
+      ? 'bg-[#2e7d32]'
+      : 'bg-[#c62828]';
 
   const handlePrint = () => {
     window.print();
   };
 
+  const title = report.is_land ? 'Stand/Plot/Land Report' : 'Asset Report';
+
   return (
     <div className="mx-auto max-w-xl overflow-hidden rounded border border-[#8f8f8f] bg-white print:border-black">
       <div className="bg-[#0d47a1] px-4 py-3 text-center text-[15px] font-semibold uppercase tracking-wide text-white print:bg-black">
-        Asset Report
+        {title}
       </div>
 
       <div className="space-y-1 px-4 py-3">
-        <ReportRow label="Asset Description" value={report.asset_description} />
-        <ReportRow
-          label="Reg. Number/Serial Number"
-          value={report.reg_number_serial}
-        />
-        <ReportRow label="Chassis Number" value={report.chassis_number} />
-        <ReportRow label="Engine Number" value={report.engine_number} />
+        {report.is_land ? (
+          <>
+            <ReportRow label="Asset Description" value={report.asset_description} />
+            <ReportRow label="Area / Development" value={report.area_development || ''} />
+            <ReportRow label="Stand Number" value={report.stand_number || report.reg_number_serial} />
+            <ReportRow label="Stand Size" value={report.stand_size || ''} />
+            <ReportRow label="City/Town" value={report.city_town || ''} />
+          </>
+        ) : (
+          <>
+            <ReportRow label="Asset Description" value={report.asset_description} />
+            <ReportRow
+              label="Reg. Number/Serial Number"
+              value={report.reg_number_serial}
+            />
+            <ReportRow label="Chassis Number" value={report.chassis_number} />
+            <ReportRow label="Engine Number" value={report.engine_number} />
+          </>
+        )}
         <ReportRow
           label={
             report.source === 'hire_purchase' ||
@@ -59,7 +83,20 @@ export function AssetEnquiryReportPanel({
         {statusLabel}
       </div>
 
-      {!isClear ? (
+      {isSold ? (
+        <div className="space-y-1 px-4 py-3">
+          <ReportRow label="Purchaser" value={report.purchaser_masked || ''} />
+          <ReportRow
+            label="ID / Reg. No."
+            value={report.purchaser_id_reg_masked || ''}
+          />
+          {report.sale_date ? (
+            <ReportRow label="Date of Sale" value={report.sale_date} />
+          ) : null}
+        </div>
+      ) : null}
+
+      {isEncumbered ? (
         <div className="space-y-1 px-4 py-3">
           {report.encumbrance_details ? (
             <ReportRow
@@ -98,8 +135,8 @@ export function AssetEnquiryReportPanel({
         </div>
       ) : null}
 
-      <div className="flex justify-end px-4 py-3 print:hidden">
-        <Button type="button" onClick={handlePrint}>
+      <div className="flex justify-center px-4 py-4 print:hidden">
+        <Button variant="secondary" onClick={handlePrint}>
           Print
         </Button>
       </div>

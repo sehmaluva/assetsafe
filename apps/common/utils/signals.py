@@ -29,7 +29,10 @@ from apps.asset_management.models.models import AssetRegistration
 from apps.hire_purchase.models.models import HirePurchaseRegistration
 from apps.collateral.models.models import CollateralRegistration
 from apps.clients.models.models import Client
-from apps.common.utils.lookups import invalidate_industry_lookup_cache
+from apps.common.utils.lookups import (
+    invalidate_common_choices_cache,
+    invalidate_industry_lookup_cache,
+)
 from django.contrib.auth import get_user_model
 import logging
 
@@ -54,6 +57,7 @@ def seed_lookup_options_after_migrate(sender, app_config, **kwargs):
         from apps.common.utils.seed_lookups import seed_system_lookup_options
 
         seed_system_lookup_options()
+        invalidate_common_choices_cache()
         invalidate_industry_lookup_cache()
     except Exception:
         # Table may not exist yet mid-migrate on older graphs; ignore and

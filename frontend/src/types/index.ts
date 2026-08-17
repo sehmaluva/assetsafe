@@ -178,6 +178,22 @@ export interface HirePurchaseFormData {
 
 // ─── Asset Registry ───────────────────────────────────────────────────────────
 
+export interface StandSaleInfo {
+  id: number;
+  purchaser_type: OwnerType;
+  individual_purchaser?: number;
+  company_purchaser?: number;
+  purchaser_display?: string;
+  purchaser_id_reg?: string;
+  sale_date: string;
+  terms: string;
+  valuation_type: string;
+  title_status: string;
+  currency_code?: string;
+  value_amount: number;
+  is_completed: boolean;
+}
+
 export interface AssetRecord {
   id: number;
   lodge_date: string;
@@ -186,6 +202,7 @@ export interface AssetRecord {
   owner_type: OwnerType;
   owner_id: number;
   owner_asset_number: string;
+  owner_id_reg?: string;
   asset_description: string;
   asset_category: string;
   asset_type: string;
@@ -196,7 +213,17 @@ export interface AssetRecord {
   mv_registration_no: string;
   chassis_number: string;
   engine_number: string;
+  imei?: string;
   serial_number: string;
+  stand_number?: string;
+  stand_size?: string;
+  stand_address?: string;
+  city_name?: string;
+  suburb_name?: string;
+  valuation_type?: string;
+  title_status?: string;
+  stand_status?: string;
+  open_sale?: StandSaleInfo | null;
   currency: Currency;
   estimated_value: number;
   location_address: string;
@@ -224,6 +251,7 @@ export interface AssetFormData {
   mv_registration_no?: string;
   chassis_number?: string;
   engine_number?: string;
+  imei?: string;
   serial_number: string;
   currency: Currency;
   estimated_value: number;

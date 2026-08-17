@@ -50,6 +50,7 @@ class AssetEnquirySearchSerializer(serializers.Serializer):
             "registration_number",
             "chassis_number",
             "engine_number",
+            "stand_number",
         ]
     )
     enquiry_log_id = serializers.IntegerField(required=False, allow_null=True)

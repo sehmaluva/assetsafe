@@ -7,7 +7,8 @@ export type EnquirySearchField =
   | 'serial_number'
   | 'registration_number'
   | 'chassis_number'
-  | 'engine_number';
+  | 'engine_number'
+  | 'stand_number';
 
 export type EnquirySource =
   | 'collateral'
@@ -46,7 +47,16 @@ export interface AssetEnquiryReport {
   engine_number: string;
   owner_masked: string;
   id_reg_masked: string;
-  status: 'clear' | 'encumbered';
+  status: 'clear' | 'encumbered' | 'sold';
+  asset_category?: string;
+  is_land?: boolean;
+  area_development?: string;
+  stand_number?: string;
+  stand_size?: string;
+  city_town?: string;
+  purchaser_masked?: string | null;
+  purchaser_id_reg_masked?: string | null;
+  sale_date?: string | null;
   encumbrance_kind: 'collateral' | 'hire_purchase' | 'custody' | null;
   encumbrance_details: string | null;
   financier: string | null;

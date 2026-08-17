@@ -18,6 +18,7 @@ const FILTER_OPTIONS: { value: EnquirySearchField; label: string }[] = [
   { value: 'registration_number', label: 'Registration Number' },
   { value: 'chassis_number', label: 'Chassis Number' },
   { value: 'engine_number', label: 'Engine Number' },
+  { value: 'stand_number', label: 'Stand Number' },
 ];
 
 export default function AssetEnquiryPage() {

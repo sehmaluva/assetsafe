@@ -486,6 +486,11 @@ class CommonChoicesView(APIView):
                 LookupOption.CATEGORY_ASSET_CONDITION
             ),
             "Industry": list_lookup_choices(LookupOption.CATEGORY_INDUSTRY),
+            "ValuationType": list_lookup_choices(
+                LookupOption.CATEGORY_VALUATION_TYPE
+            ),
+            "TitleStatus": list_lookup_choices(LookupOption.CATEGORY_TITLE_STATUS),
+            "SaleTerms": list_lookup_choices(LookupOption.CATEGORY_SALE_TERMS),
             "CustodyType": [
                 {"value": choice.value, "label": choice.label}
                 for choice in CustodyType
@@ -531,6 +536,24 @@ class CommonChoicesView(APIView):
 
             all_choices["Industry"] = [
                 {"value": c.value, "label": c.label} for c in Industry
+            ]
+        if not all_choices["ValuationType"]:
+            from apps.common.models import ValuationType
+
+            all_choices["ValuationType"] = [
+                {"value": c.value, "label": c.label} for c in ValuationType
+            ]
+        if not all_choices["TitleStatus"]:
+            from apps.common.models import TitleStatus
+
+            all_choices["TitleStatus"] = [
+                {"value": c.value, "label": c.label} for c in TitleStatus
+            ]
+        if not all_choices["SaleTerms"]:
+            from apps.common.models import SaleTerms
+
+            all_choices["SaleTerms"] = [
+                {"value": c.value, "label": c.label} for c in SaleTerms
             ]
 
         requested_types = request.query_params.get("types")

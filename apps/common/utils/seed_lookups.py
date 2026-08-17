@@ -44,6 +44,9 @@ def seed_system_lookup_options(
         BaseAssetType,
         CollateralAssetType,
         PartyType,
+        SaleTerms,
+        TitleStatus,
+        ValuationType,
     )
     from apps.companies.models.models import Industry
 
@@ -54,6 +57,9 @@ def seed_system_lookup_options(
         ("AssetCondition", _rows_from_text_choices(AssetCondition)),
         ("CollateralAssetCategory", _rows_from_text_choices(CollateralAssetType)),
         ("Industry", _rows_from_text_choices(Industry)),
+        ("ValuationType", _rows_from_text_choices(ValuationType)),
+        ("TitleStatus", _rows_from_text_choices(TitleStatus)),
+        ("SaleTerms", _rows_from_text_choices(SaleTerms)),
     ]
 
     for category, rows in batches:

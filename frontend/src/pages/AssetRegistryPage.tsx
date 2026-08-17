@@ -252,7 +252,7 @@ export default function AssetRegistryPage() {
         </div>
 
         <div className="shrink-0 bg-[#7f7a7b] px-3 py-1 text-center text-[14px] font-bold uppercase text-white">
-          Active Agreements
+          Asset List
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -304,7 +304,7 @@ export default function AssetRegistryPage() {
                     Asset Description
                   </th>
                   <th className="px-2 py-2 font-bold text-black">
-                    Reg/Serial Number
+                    Reg/Serial/Stand
                   </th>
                   <th className="px-2 py-2 font-bold text-black">Currency</th>
                   <th className="px-2 py-2 font-bold text-black text-right">
@@ -349,7 +349,9 @@ export default function AssetRegistryPage() {
                         {rec.asset_description}
                       </td>
                       <td className="border-r border-[#8f8f8f] px-2 py-2">
-                        {rec.serial_number || rec.mv_registration_no}
+                        {rec.serial_number ||
+                          rec.stand_number ||
+                          rec.mv_registration_no}
                       </td>
                       <td className="border-r border-[#8f8f8f] px-2 py-2">
                         {rec.currency}
