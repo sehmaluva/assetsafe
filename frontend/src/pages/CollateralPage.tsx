@@ -28,6 +28,7 @@ import {
 } from '@/lib/utils';
 import { invalidateRegistryQueries } from '@/lib/registryCache';
 import { registryQueryOptions } from '@/lib/registryQueryOptions';
+import { isStaffUser } from '@/lib/registryNav';
 import { useAuthStore } from '@/store';
 import type { CollateralRecord } from '@/types';
 
@@ -80,6 +81,14 @@ export default function CollateralPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const authReady = useAuthStore((s) => s.authReady);
   const user = useAuthStore((s) => s.user);
+  const isStaff = isStaffUser(user);
+  const searchFieldOptions = useMemo(
+    () =>
+      SEARCH_FIELD_OPTIONS.filter(
+        (opt) => isStaff || opt.value !== 'financier',
+      ),
+    [isStaff],
+  );
   const [searchField, setSearchField] =
     useState<CollateralSearchField>('agreement_number');
   const [searchValue, setSearchValue] = useState('');
@@ -94,6 +103,19 @@ export default function CollateralPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewRecord, setViewRecord] = useState<CollateralRecord | null>(null);
+
+  useEffect(() => {
+    if (isStaff) return;
+    if (searchField === 'financier') {
+      setSearchField('agreement_number');
+    }
+    if (appliedSearchField === 'financier') {
+      setAppliedSearchField('agreement_number');
+      setAppliedSearch('');
+      setSearchValue('');
+      setCurrentPage(1);
+    }
+  }, [isStaff, searchField, appliedSearchField]);
 
   const openAddSingle = async () => {
     setAddOpen(true);
@@ -233,10 +255,12 @@ export default function CollateralPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4 border-b border-[#8f8f8f] bg-[#f8f7f2] px-3 py-2">
-          <InlineStat
-            label="Financiers"
-            value={statsData?.number_of_financiers ?? 0}
-          />
+          {isStaff ? (
+            <InlineStat
+              label="Financiers"
+              value={statsData?.number_of_financiers ?? 0}
+            />
+          ) : null}
           <InlineStat
             label="Active Agreements"
             value={statsData?.active_agreements ?? 0}
@@ -262,7 +286,7 @@ export default function CollateralPage() {
               }
               className="h-7 min-w-[140px] rounded-none border border-black bg-white px-2 text-[12px]"
             >
-              {SEARCH_FIELD_OPTIONS.map((opt) => (
+              {searchFieldOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -368,7 +392,9 @@ export default function CollateralPage() {
                       )}
                     </button>
                   </th>
-                  <th className="px-2 py-2 font-bold">Financier</th>
+                  <th className="px-2 py-2 font-bold">
+                    {isStaff ? 'Financier' : 'Agreement Number'}
+                  </th>
                   <th className="px-2 py-2 font-bold">
                     <button
                       type="button"
@@ -425,7 +451,7 @@ export default function CollateralPage() {
                         {formatDate(rec.lodge_date)}
                       </td>
                       <td className="border-r border-[#8f8f8f] px-2 py-2">
-                        {rec.financier_name}
+                        {isStaff ? rec.financier_name : rec.agreement_number}
                       </td>
                       <td className="border-r border-[#8f8f8f] px-2 py-2">
                         {rec.debtor_name}
