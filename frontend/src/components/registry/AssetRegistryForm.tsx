@@ -11,10 +11,12 @@ import { DateInput } from '@/components/ui/DateInput';
 import AutocompleteInput from '@/components/shared/AutocompleteInput';
 import { individualsApi } from '@/api/individualsApi';
 import { companiesApi } from '@/api/companiesApi';
+import { locationsApi } from '@/api/locationsApi';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/shared/Modal';
 import { IndividualCreateForm } from '@/components/individuals/IndividualCreateForm';
 import { CompanyCreateForm } from '@/components/companies/CompanyCreateForm';
+import { LocationCascadeSelects } from '@/components/shared/LocationCascadeSelects';
 import { UserPlus, Building } from 'lucide-react';
 import { FormSectionHeader } from '@/components/shared/FormSectionHeader';
 import { FieldError } from '@/components/shared/FieldError';
@@ -48,7 +50,8 @@ const schema = z
     custodian_type: z.string().optional(),
     custodian_id: z.number().optional(),
     custody_type: z.string().optional(),
-    custodian_address: z.string().optional(),
+    custodian_street_address: z.string().optional(),
+    custodian_suburb_id: z.coerce.number().optional(),
     custodian_email: z.string().optional(),
     custodian_mobile: z.string().optional(),
     custodian_telephone: z.string().optional(),
@@ -78,11 +81,18 @@ const schema = z
         path: ['custody_type'],
       });
     }
-    if (!data.custodian_address?.trim()) {
+    if (!data.custodian_street_address?.trim()) {
       ctx.addIssue({
         code: 'custom',
-        message: 'Custodian address is required',
-        path: ['custodian_address'],
+        message: 'Street address is required',
+        path: ['custodian_street_address'],
+      });
+    }
+    if (!data.custodian_suburb_id || data.custodian_suburb_id < 1) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Suburb is required',
+        path: ['custodian_suburb_id'],
       });
     }
   });
@@ -183,14 +193,23 @@ export function AssetRegistryForm({
     email?: string;
     phone?: string;
     telephone?: string;
-    address?: string;
+    street_address?: string;
+    suburb_id?: number;
   }) => {
-    setValue('custodian_address', contact.address ?? '', {
+    setValue('custodian_street_address', contact.street_address ?? '', {
+      shouldValidate: true,
+    });
+    setValue('custodian_suburb_id', contact.suburb_id ?? undefined, {
       shouldValidate: true,
     });
     setValue('custodian_email', contact.email ?? '');
     setValue('custodian_mobile', contact.phone ?? '');
     setValue('custodian_telephone', contact.telephone ?? '');
+  };
+
+  const clearCustodianAddress = () => {
+    setValue('custodian_street_address', '');
+    setValue('custodian_suburb_id', undefined);
   };
 
   const applyCustodianSelection = async (item: SearchOption) => {
@@ -273,13 +292,40 @@ export function AssetRegistryForm({
   const watchAssetCategory = watch('asset_category');
   const isVehicle = watchAssetCategory === 'vehicles';
 
+  const { data: suburbsWithHierarchy = [] } = useQuery({
+    queryKey: ['loc-suburbs-view'],
+    queryFn: locationsApi.getAllSuburbsWithHierarchy,
+    ...queryOptions.static,
+    enabled: Boolean(underCustody),
+  });
+
   const { mutate: submit, isPending } = useMutation({
-    mutationFn: (data: FormValues) => {
+    mutationFn: async (data: FormValues) => {
+      let suburbs = suburbsWithHierarchy;
+      if (
+        data.under_custody &&
+        data.custodian_suburb_id &&
+        !suburbs.find((s) => s.id === data.custodian_suburb_id)
+      ) {
+        suburbs = await locationsApi.getAllSuburbsWithHierarchy();
+      }
+      const suburb = suburbs.find((s) => s.id === data.custodian_suburb_id);
+      const custodian_address = data.under_custody
+        ? [
+            data.custodian_street_address?.trim() ?? '',
+            suburb?.name ?? '',
+            suburb?.city_name ?? '',
+          ]
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .join(', ')
+        : '';
       const payload = {
         ...data,
         custody_type: data.under_custody ? data.custody_type : '',
         custodian_type: data.under_custody ? data.custodian_type : '',
         custodian_id: data.under_custody ? data.custodian_id : undefined,
+        custodian_address,
       };
       return isEdit && recordId
         ? assetRegistryApi.updateRecord(recordId, payload as any)
@@ -576,7 +622,7 @@ export function AssetRegistryForm({
                   setValue('custody_type', '');
                   setValue('custodian_id', undefined);
                   setCustodianSearchLabel('');
-                  setValue('custodian_address', '');
+                  clearCustodianAddress();
                   setValue('custodian_email', '');
                   setValue('custodian_mobile', '');
                   setValue('custodian_telephone', '');
@@ -600,7 +646,7 @@ export function AssetRegistryForm({
                     onChange: () => {
                       setValue('custodian_id', undefined);
                       setCustodianSearchLabel('');
-                      setValue('custodian_address', '');
+                      clearCustodianAddress();
                       setValue('custodian_email', '');
                       setValue('custodian_mobile', '');
                       setValue('custodian_telephone', '');
@@ -652,7 +698,7 @@ export function AssetRegistryForm({
                         field.onChange(id);
                         if (!id) {
                           setCustodianSearchLabel('');
-                          setValue('custodian_address', '');
+                          clearCustodianAddress();
                           setValue('custodian_email', '');
                           setValue('custodian_mobile', '');
                           setValue('custodian_telephone', '');
@@ -680,13 +726,26 @@ export function AssetRegistryForm({
               </div>
               <div className="col-span-2">
                 <Input
-                  label="Address"
-                  {...register('custodian_address')}
-                  placeholder="Auto-fill or enter address"
+                  label="Street Address"
+                  {...register('custodian_street_address')}
+                  placeholder="Street name, house/building number"
                   required
-                  error={errors.custodian_address?.message}
+                  error={errors.custodian_street_address?.message}
                 />
               </div>
+              <Controller
+                name="custodian_suburb_id"
+                control={control}
+                render={({ field }) => (
+                  <LocationCascadeSelects
+                    value={field.value}
+                    onChange={(id) =>
+                      field.onChange(id > 0 ? id : undefined)
+                    }
+                    error={errors.custodian_suburb_id?.message}
+                  />
+                )}
+              />
               <Input label="Mobile" {...register('custodian_mobile')} />
               <Input label="Email" {...register('custodian_email')} />
               <Input label="Telephone" {...register('custodian_telephone')} />

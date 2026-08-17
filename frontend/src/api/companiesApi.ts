@@ -35,23 +35,37 @@ export interface BranchContactDetails {
   phone: string;
   telephone: string;
   address: string;
+  street_address: string;
+  suburb_id?: number;
 }
 
-function formatAddress(addr: unknown): string {
-  if (!addr || typeof addr !== 'object') return '';
+function parseAddress(addr: unknown): {
+  address: string;
+  street_address: string;
+  suburb_id?: number;
+} {
+  if (!addr || typeof addr !== 'object') {
+    return { address: '', street_address: '' };
+  }
   const row = addr as Record<string, unknown>;
+  const street_address = String(row.street_address ?? '').trim();
   const suburb =
     row.suburb && typeof row.suburb === 'object'
-      ? String((row.suburb as { name?: string }).name ?? '')
-      : '';
+      ? (row.suburb as { id?: number; name?: string })
+      : null;
   const city =
     row.city && typeof row.city === 'object'
-      ? String((row.city as { name?: string }).name ?? '')
-      : '';
-  return [String(row.street_address ?? ''), suburb, city]
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .join(', ');
+      ? (row.city as { name?: string })
+      : null;
+  const suburbId = suburb?.id != null ? Number(suburb.id) : undefined;
+  return {
+    street_address,
+    suburb_id: suburbId && suburbId > 0 ? suburbId : undefined,
+    address: [street_address, suburb?.name ?? '', city?.name ?? '']
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .join(', '),
+  };
 }
 
 export const companiesApi = {
@@ -120,12 +134,15 @@ export const companiesApi = {
       record.profile && typeof record.profile === 'object'
         ? (record.profile as Record<string, unknown>)
         : null;
+    const parsed = parseAddress(record.primary_address);
     return {
       id: Number(record.id),
       email: String(record.email ?? profile?.email ?? ''),
       phone: String(record.phone ?? profile?.mobile_phone ?? ''),
       telephone: String(profile?.landline_phone ?? ''),
-      address: formatAddress(record.primary_address),
+      address: parsed.address,
+      street_address: parsed.street_address,
+      suburb_id: parsed.suburb_id,
     };
   },
 };
