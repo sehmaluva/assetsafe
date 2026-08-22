@@ -3,6 +3,8 @@ export interface SearchOption {
   id: number | null;
   name: string;
   subtitle?: string;
+  /** National ID or company registration number for display in ID/Comp Reg fields. */
+  idReg?: string;
   source?: 'internal' | 'external';
   external_reference?: string | null;
 }
@@ -42,6 +44,7 @@ export function mapIndividualSearchResult(
       (item.identification_number as string | undefined) ??
       (item.phone as string | undefined) ??
       (item.email as string | undefined),
+    idReg: String(item.identification_number ?? '').trim() || undefined,
     source: (item.source as SearchOption['source']) ?? 'internal',
     external_reference: (item.external_reference as string | null) ?? null,
   };
@@ -82,12 +85,26 @@ export function mapBranchSearchResult(
     id: item.id != null ? Number(item.id) : null,
     name: regNo ? `${name} (${regNo})` : name,
     subtitle: item.source === 'external' ? 'External registry' : undefined,
+    idReg: regNo || undefined,
     source: (item.source as SearchOption['source']) ?? 'internal',
     external_reference:
       (item.external_reference as string | null) ??
       (company?.external_reference as string | null) ??
       null,
   };
+}
+
+/** Display value for ID/Comp Reg autocomplete fields (not the party name). */
+export function partyIdRegDisplay(
+  item: SearchOption,
+  partyType: string,
+): string {
+  if (item.idReg?.trim()) return item.idReg.trim();
+  if (partyType === 'individual') {
+    return item.subtitle?.trim() ?? '';
+  }
+  const match = item.name.match(/\(([^)]+)\)\s*$/);
+  return match?.[1]?.trim() ?? '';
 }
 
 export function mapClientSearchResult(

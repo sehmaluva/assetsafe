@@ -16,6 +16,7 @@ import { clientsApi } from '@/api/clientsApi';
 import { individualsApi } from '@/api/individualsApi';
 import { companiesApi } from '@/api/companiesApi';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/DateInput';
 import AutocompleteInput from '@/components/shared/AutocompleteInput';
 import { Button } from '@/components/ui/button';
@@ -573,31 +574,26 @@ export function CollateralForm({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 p-4 pb-2 sm:grid-cols-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-slate-700">
-                  Financier Type
-                </label>
-                <select
-                  value={financierClientType}
-                  onChange={(e) =>
-                    setFinancierClientType(
-                      e.target.value as 'individual' | 'company',
-                    )
-                  }
-                  className="h-8 w-full rounded-sm border border-slate-500 bg-white px-2.5 text-sm text-slate-900 focus:border-black focus:outline-none focus:ring-0"
-                  disabled={!partyTypeOptions.length}
-                >
-                  {partyTypeOptions.length === 0 ? (
-                    <option value="company">Loading...</option>
-                  ) : (
-                    partyTypeOptions.map((option: any) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
+              <Select
+                label="Financier Type"
+                value={financierClientType}
+                onChange={(e) =>
+                  setFinancierClientType(
+                    e.target.value as 'individual' | 'company',
+                  )
+                }
+                disabled={!partyTypeOptions.length}
+              >
+                {partyTypeOptions.length === 0 ? (
+                  <option value="company">Loading...</option>
+                ) : (
+                  partyTypeOptions.map((option: any) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))
+                )}
+              </Select>
               <div className="col-span-2">
                 <Controller
                   name="financier_id"
@@ -750,25 +746,20 @@ export function CollateralForm({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-            <div>
-              <label className="text-xs font-medium text-slate-600">
-                Debtor Type
-              </label>
-              <select
-                {...register('debtor_type')}
-                className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                disabled={!partyTypeOptions.length}
-              >
-                <option value="">
-                  {partyTypeOptions.length ? 'Select type...' : 'Loading...'}
+            <Select
+              label="Debtor Type"
+              {...register('debtor_type')}
+              disabled={!partyTypeOptions.length}
+            >
+              <option value="">
+                {partyTypeOptions.length ? 'Select type...' : 'Loading...'}
+              </option>
+              {partyTypeOptions.map((option: any) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
-                {partyTypeOptions.map((option: any) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+              ))}
+            </Select>
             <div className="col-span-3">
               <Controller
                 name="debtor_id"
@@ -821,28 +812,24 @@ export function CollateralForm({
             error={errors.agreement_number?.message}
             required
           />
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Asset Category<span className="text-red-500 ml-0.5">*</span>
-            </label>
-            <select
-              {...register('asset_category')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!assetCategoryOptions.length}
-            >
-              <option value="">
-                {assetCategoryOptions.length
-                  ? 'Click to select...'
-                  : 'Loading...'}
+          <Select
+            label="Asset Category"
+            required
+            {...register('asset_category')}
+            disabled={!assetCategoryOptions.length}
+            error={errors.asset_category?.message}
+          >
+            <option value="">
+              {assetCategoryOptions.length
+                ? 'Click to select...'
+                : 'Loading...'}
+            </option>
+            {assetCategoryOptions.map((t: any) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
               </option>
-              {assetCategoryOptions.map((t: any) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <FieldError message={errors.asset_category?.message} />
-          </div>
+            ))}
+          </Select>
           <Input
             label="Asset Type"
             {...register('asset_type')}
@@ -868,26 +855,21 @@ export function CollateralForm({
             error={errors.asset_year?.message}
             required
           />
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Condition
-            </label>
-            <select
-              {...register('asset_condition')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!assetConditionOptions.length}
-            >
-              <option value="">
-                {assetConditionOptions.length ? 'Select...' : 'Loading...'}
+          <Select
+            label="Condition"
+            {...register('asset_condition')}
+            disabled={!assetConditionOptions.length}
+            error={errors.asset_condition?.message}
+          >
+            <option value="">
+              {assetConditionOptions.length ? 'Select...' : 'Loading...'}
+            </option>
+            {assetConditionOptions.map((c: any) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
               </option>
-              {assetConditionOptions.map((c: any) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <FieldError message={errors.asset_condition?.message} />
-          </div>
+            ))}
+          </Select>
           <Input
             label="MV Registration No."
             {...register('asset_registration_no')}
@@ -912,26 +894,22 @@ export function CollateralForm({
         {/* ── Financial Details ── */}
         <FormSectionHeader title="Financial Details" variant="teal" />
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Currency<span className="text-red-500 ml-0.5">*</span>
-            </label>
-            <select
-              {...register('currency')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!currencies.length}
-            >
-              <option value="">
-                {currencies.length ? 'Select currency...' : 'Loading...'}
+          <Select
+            label="Currency"
+            required
+            {...register('currency')}
+            disabled={!currencies.length}
+            error={errors.currency?.message}
+          >
+            <option value="">
+              {currencies.length ? 'Select currency...' : 'Loading...'}
+            </option>
+            {currencies.map((currency) => (
+              <option key={currency.code} value={currency.code}>
+                {currency.code} - {currency.name}
               </option>
-              {currencies.map((currency) => (
-                <option key={currency.code} value={currency.code}>
-                  {currency.code} - {currency.name}
-                </option>
-              ))}
-            </select>
-            <FieldError message={errors.currency?.message} />
-          </div>
+            ))}
+          </Select>
           <Input
             label="Total Debt"
             type="number"

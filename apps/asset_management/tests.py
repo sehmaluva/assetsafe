@@ -189,6 +189,35 @@ class TypedAssetRegistryTestCase(TestCase):
         self.assertEqual(asset.individual_owner_id, self.buyer.pk)
         self.assertIsNone(asset.get_open_sale_transition())
 
+    def test_ownership_change_updates_currency_and_value(self):
+        asset = self._create_land_asset()
+        other_currency = Currency.objects.create(code="EUR", name="Euro")
+        record_ownership_change(
+            asset,
+            owner_type="individual",
+            individual_owner=self.owner,
+            company_owner=None,
+            currency=other_currency,
+            value_amount=Decimal("50000"),
+            user=self.user,
+        )
+        asset.refresh_from_db()
+        self.assertEqual(asset.currency_id, other_currency.pk)
+        self.assertEqual(asset.estimated_value, Decimal("50000"))
+
+    def test_ownership_change_rejects_same_owner(self):
+        asset = self._create_land_asset()
+        with self.assertRaisesMessage(
+            ValueError, "The new owner cannot be the same as the current owner."
+        ):
+            record_ownership_change(
+                asset,
+                owner_type="individual",
+                individual_owner=self.owner,
+                company_owner=None,
+                user=self.user,
+            )
+
     def test_enquiry_stand_search_and_sold_report(self):
         asset = self._create_land_asset()
         record_sale_transition(
@@ -274,6 +303,21 @@ class TypedAssetRegistryAPITest(APITestCase):
         data = response.json().get("data") or response.json()
         self.assertEqual(data["asset_category"], "land")
         self.assertEqual(data["land"]["stand_number"], "290")
+
+    def test_ownership_change_rejects_same_owner_via_api(self):
+        response = self.client.post(
+            f"/api/asset-management/{self.asset_id}/ownership-change/",
+            {
+                "owner_type": "individual",
+                "individual_owner": self.owner.pk,
+                "company_owner": None,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        body = response.json()
+        payload = body.get("data") or body
+        self.assertIn("same as the current owner", str(payload.get("error", "")))
 
     def test_vehicle_payload_nested(self):
         today = date.today()

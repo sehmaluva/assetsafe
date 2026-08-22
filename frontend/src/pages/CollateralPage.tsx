@@ -16,6 +16,7 @@ import { InlineStat } from '@/components/shared/InlineStat';
 import { TableSkeleton } from '@/components/shared/TableSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/shared/Modal';
 import { CollateralForm } from '@/components/collateral/CollateralForm';
 import { CollateralViewModal } from '@/components/collateral/CollateralViewModal';
@@ -279,19 +280,19 @@ export default function CollateralPage() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#8f8f8f] px-3 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[12px] font-bold text-black">Search</span>
-            <select
+            <Select
               value={searchField}
               onChange={(e) =>
                 setSearchField(e.target.value as CollateralSearchField)
               }
-              className="h-7 min-w-[140px] rounded-none border border-black bg-white px-2 text-[12px]"
+              className="h-7 min-w-[140px] rounded-none border-black text-[12px] leading-7"
             >
               {searchFieldOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <input
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}

@@ -306,6 +306,7 @@ class AssetRegistrationViewSet(BaseViewSet):
                 valuation_type=data.get("valuation_type", ""),
                 title_status=data.get("title_status", ""),
                 terms=data.get("terms", ""),
+                currency=data.get("currency"),
                 value_amount=data.get("value_amount"),
                 user=request.user,
             )

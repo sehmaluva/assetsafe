@@ -1,8 +1,7 @@
 import type { AssetRecord } from '@/types';
-import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
-function ReportRow({ label, value }: { label: string; value: string }) {
+export function ReportRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[minmax(140px,200px)_1fr] items-center gap-3 py-1.5">
       <span className="text-sm font-bold text-slate-900">{label}</span>
@@ -24,8 +23,7 @@ export function StandViewReport({
   onSaleTransition: () => void;
   onPrint: () => void;
 }) {
-  const isSold =
-    detail.stand_status === 'sold' || Boolean(detail.open_sale);
+  const isSold = detail.stand_status === 'sold' || Boolean(detail.open_sale);
 
   return (
     <div>
@@ -33,17 +31,19 @@ export function StandViewReport({
         Stand/Plot/Land Report
       </div>
       <div className="space-y-1 px-4 py-3">
-        <ReportRow label="Asset Description" value={detail.asset_type || 'Stand'} />
-        <ReportRow label="Area / Development" value={detail.suburb_name ?? ''} />
+        <ReportRow
+          label="Asset Description"
+          value={detail.asset_type || 'Stand'}
+        />
+        <ReportRow
+          label="Area / Development"
+          value={detail.suburb_name ?? ''}
+        />
         <ReportRow label="Stand Number" value={detail.stand_number ?? ''} />
         <ReportRow label="Stand Size" value={detail.stand_size ?? ''} />
         <ReportRow label="City/Town" value={detail.city_name ?? ''} />
         <ReportRow label="Owner" value={detail.owner_name} />
         <ReportRow label="ID / Reg. No." value={detail.owner_id_reg ?? ''} />
-        <ReportRow
-          label="Est. Value"
-          value={formatCurrency(detail.estimated_value)}
-        />
       </div>
 
       <div
@@ -78,7 +78,7 @@ export function StandViewReport({
           Ownership Change
         </Button>
         <Button
-          variant="secondary"
+          variant="danger"
           size="md"
           className="h-10 min-w-0 w-full px-2 text-xs sm:text-sm"
           onClick={onSaleTransition}

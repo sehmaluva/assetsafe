@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useFormState, Controller } from 'react-hook-form';
 import { zodResolver } from '@/lib/zodResolver';
-import { applyApiValidationErrors } from '@/lib/formErrors';
+import {
+  firstFormErrorMessage,
+  handleFormSubmitError,
+} from '@/lib/formErrors';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { assetRegistryApi } from '@/api/assetRegistryApi';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/DateInput';
 import AutocompleteInput from '@/components/shared/AutocompleteInput';
 import { individualsApi } from '@/api/individualsApi';
@@ -25,6 +29,17 @@ import { queryOptions } from '@/api/queryOptions';
 import { useCommonChoices } from '@/hooks/useCommonChoices';
 import { toBackendAssetType } from '@/lib/assetTypes';
 import type { SearchOption } from '@/lib/searchResults';
+import { partyIdRegDisplay } from '@/lib/searchResults';
+import {
+  applySellerContactToForm,
+  clearSellerContactForm,
+  contactToFieldLocks,
+  EditableSellerContactGrid,
+  emptySellerFieldLocks,
+  fetchPartyContactWithSuburbId,
+  syncSellerContactToParty,
+  type SellerFieldLocks,
+} from '@/lib/partyContact';
 
 const LAND_ASSET_TYPES = ['Stand', 'Plot', 'Land'];
 
@@ -68,6 +83,14 @@ const schema = z
     custodian_telephone: z.string().optional(),
     guarantor_name: z.string().optional(),
     guarantor_identification: z.string().optional(),
+    seller_name: z.string().optional(),
+    seller_email: z.string().optional(),
+    seller_street: z.string().optional(),
+    seller_suburb: z.string().optional(),
+    seller_city: z.string().optional(),
+    seller_mobile: z.string().optional(),
+    seller_telephone: z.string().optional(),
+    seller_suburb_id: z.coerce.number().optional(),
   })
   .superRefine((data, ctx) => {
     const isLand = toBackendAssetType(data.asset_category) === 'land';
@@ -118,7 +141,11 @@ const schema = z
         path: ['asset_model'],
       });
     }
-    if (!data.year_of_make || data.year_of_make < 1900 || data.year_of_make > 2100) {
+    if (
+      !data.year_of_make ||
+      data.year_of_make < 1900 ||
+      data.year_of_make > 2100
+    ) {
       ctx.addIssue({
         code: 'custom',
         message: 'Year of make is required',
@@ -204,9 +231,14 @@ export function AssetRegistryForm({
   const [addCustodianCompanyOpen, setAddCustodianCompanyOpen] = useState(false);
   const [addGuarantorOpen, setAddGuarantorOpen] = useState(false);
   const [custodianSearchLabel, setCustodianSearchLabel] = useState('');
+  const [ownerIdRegLabel, setOwnerIdRegLabel] = useState(ownerDisplayLabel ?? '');
   const [guarantorSelectedId, setGuarantorSelectedId] = useState<
     number | undefined
   >();
+  const [sellerFieldLocks, setSellerFieldLocks] = useState<SellerFieldLocks>(
+    emptySellerFieldLocks,
+  );
+  const prevOwnerTypeRef = useRef<string | null>(null);
 
   const { register, control, handleSubmit, watch, setValue, setError } =
     useForm<FormValues>({
@@ -252,6 +284,7 @@ export function AssetRegistryForm({
       ? choices.CustodyType
       : CUSTODY_TYPE_FALLBACK;
   const currentOwnerType = watch('owner_type');
+  const currentOwnerId = watch('owner_id');
   const underCustody = watch('under_custody');
   const currentCustodianType = watch('custodian_type');
   const currentCustodianId = watch('custodian_id');
@@ -372,6 +405,44 @@ export function AssetRegistryForm({
   const isMobile = category === 'mobiles';
   const isLand = category === 'land';
 
+  useEffect(() => {
+    if (prevOwnerTypeRef.current === null) {
+      prevOwnerTypeRef.current = currentOwnerType;
+      return;
+    }
+    if (prevOwnerTypeRef.current !== currentOwnerType) {
+      prevOwnerTypeRef.current = currentOwnerType;
+      setValue('owner_id', 0);
+      setOwnerIdRegLabel('');
+      clearSellerContactForm(setValue);
+      setSellerFieldLocks(emptySellerFieldLocks());
+    }
+  }, [currentOwnerType, setValue]);
+
+  useEffect(() => {
+    if (!isLand) return;
+    if (!currentOwnerId || currentOwnerId < 1) {
+      clearSellerContactForm(setValue);
+      setSellerFieldLocks(emptySellerFieldLocks());
+      setOwnerIdRegLabel('');
+      return;
+    }
+    let cancelled = false;
+    void fetchPartyContactWithSuburbId(
+      currentOwnerType,
+      currentOwnerId,
+      ownerDisplayLabel ?? '',
+    ).then(({ contact, suburbId }) => {
+      if (!cancelled) {
+        applySellerContactToForm(setValue, contact, suburbId);
+        setSellerFieldLocks(contactToFieldLocks(contact));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLand, currentOwnerType, currentOwnerId, setValue]);
+
   const valuationOptions = choices.ValuationType ?? [];
   const titleStatusOptions = choices.TitleStatus ?? [];
 
@@ -395,6 +466,19 @@ export function AssetRegistryForm({
 
   const { mutate: submit, isPending } = useMutation({
     mutationFn: async (data: FormValues) => {
+      if (
+        toBackendAssetType(data.asset_category) === 'land' &&
+        data.owner_id &&
+        data.owner_id > 0
+      ) {
+        await syncSellerContactToParty(
+          data.owner_type,
+          data.owner_id,
+          data,
+          sellerFieldLocks,
+        );
+      }
+
       let suburbs = suburbsWithHierarchy;
       if (
         data.under_custody &&
@@ -427,19 +511,14 @@ export function AssetRegistryForm({
     },
     onSuccess,
     onError: (err: unknown) => {
-      if (!applyApiValidationErrors(setError, err)) {
-        const data = (
-          err as { response?: { data?: { message?: string; error?: string } } }
-        )?.response?.data;
-        toast.error(data?.message ?? data?.error ?? 'Failed to save');
-      } else {
-        toast.error('Please fix the highlighted fields');
-      }
+      handleFormSubmitError(setError, err, 'Failed to save');
     },
   });
 
-  const onInvalid = () => {
-    toast.error('Please fix the highlighted fields');
+  const onInvalid = (formErrors: Parameters<typeof firstFormErrorMessage>[0]) => {
+    toast.error(
+      firstFormErrorMessage(formErrors) ?? 'Please fix the highlighted fields',
+    );
   };
 
   return (
@@ -476,46 +555,55 @@ export function AssetRegistryForm({
           </div>
         )}
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Owner Type
-            </label>
-            <select
-              {...register('owner_type')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!partyTypeOptions.length || isEdit}
-            >
-              <option value="">
-                {partyTypeOptions.length
-                  ? 'Select owner type...'
-                  : 'Loading owner types...'}
+          <Select
+            label={isLand ? 'Seller Type' : 'Owner Type'}
+            {...register('owner_type')}
+            disabled={!partyTypeOptions.length || isEdit}
+          >
+            <option value="">
+              {partyTypeOptions.length
+                ? 'Select owner type...'
+                : 'Loading owner types...'}
+            </option>
+            {partyTypeOptions.map((option: any) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
-              {partyTypeOptions.map((option: any) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+            ))}
+          </Select>
           <div className="col-span-2">
             <Controller
               name="owner_id"
               control={control}
               render={({ field }) => (
                 <AutocompleteInput
-                  label="Name / ID / Co. Reg #"
+                  key={`asset-owner-${watch('owner_type')}`}
+                  label={
+                    isLand ? 'ID/Comp Reg search' : 'Name / ID / Co. Reg #'
+                  }
                   placeholder="Search owner..."
                   queryKey={`asset-owner-${watch('owner_type')}`}
-                  displayLabel={ownerDisplayLabel}
+                  displayLabel={isLand ? ownerIdRegLabel : ownerDisplayLabel}
                   fetchFn={(q) =>
                     watch('owner_type') === 'company'
                       ? companiesApi.searchBranches(q)
                       : individualsApi.searchIndividuals(q)
                   }
-                  resolveSelection={(item) =>
-                    watch('owner_type') === 'company'
-                      ? companiesApi.resolveBranchSelection(item)
-                      : individualsApi.resolveIndividualSelection(item)
+                  resolveSelection={async (item) => {
+                    const ownerType = watch('owner_type');
+                    const id =
+                      ownerType === 'company'
+                        ? await companiesApi.resolveBranchSelection(item)
+                        : await individualsApi.resolveIndividualSelection(item);
+                    if (isLand) {
+                      setOwnerIdRegLabel(partyIdRegDisplay(item, ownerType));
+                    }
+                    return id;
+                  }}
+                  selectionDisplay={
+                    isLand
+                      ? (item) => partyIdRegDisplay(item, watch('owner_type'))
+                      : undefined
                   }
                   createLabel={
                     watch('owner_type') === 'company'
@@ -532,7 +620,10 @@ export function AssetRegistryForm({
                   error={errors.owner_id?.message}
                   value={field.value}
                   onBlur={field.onBlur}
-                  onChange={(v) => field.onChange(Number(v))}
+                  onChange={(v) => {
+                    field.onChange(Number(v));
+                    if (isLand && !v) setOwnerIdRegLabel('');
+                  }}
                 />
               )}
             />
@@ -543,6 +634,22 @@ export function AssetRegistryForm({
             placeholder="Internal asset code"
           />
         </div>
+        {isLand && currentOwnerId != null && currentOwnerId > 0 ? (
+          <EditableSellerContactGrid
+            register={register}
+            errors={errors}
+            fieldLocks={sellerFieldLocks}
+            values={{
+              seller_name: watch('seller_name'),
+              seller_email: watch('seller_email'),
+              seller_street: watch('seller_street'),
+              seller_suburb: watch('seller_suburb'),
+              seller_city: watch('seller_city'),
+              seller_mobile: watch('seller_mobile'),
+              seller_telephone: watch('seller_telephone'),
+            }}
+          />
+        ) : null}
 
         {/* ── Asset / Stand Details ── */}
         <FormSectionHeader
@@ -550,60 +657,51 @@ export function AssetRegistryForm({
           variant="dark"
         />
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Asset Category<span className="text-red-500 ml-0.5">*</span>
-            </label>
-            <select
-              {...register('asset_category')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!assetCategoryOptions.length || isEdit}
-            >
-              <option value="">
-                {assetCategoryOptions.length
-                  ? 'Select asset category'
-                  : 'Loading...'}
+          <Select
+            label="Asset Category"
+            required
+            {...register('asset_category')}
+            disabled={!assetCategoryOptions.length || isEdit}
+            error={errors.asset_category?.message}
+          >
+            <option value="">
+              {assetCategoryOptions.length
+                ? 'Select asset category'
+                : 'Loading...'}
+            </option>
+            {assetCategoryOptions.map((t: any) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
               </option>
-              {assetCategoryOptions.map((t: any) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <FieldError message={errors.asset_category?.message} />
-          </div>
+            ))}
+          </Select>
 
           {isLand ? (
             <>
-              <div>
-                <label className="text-xs font-medium text-slate-600">
-                  Asset Description<span className="text-red-500 ml-0.5">*</span>
-                </label>
-                <select
-                  {...register('asset_type')}
-                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                >
-                  {LAND_ASSET_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={errors.asset_type?.message} />
-              </div>
-              <div className="col-span-full">
-                <Controller
-                  name="suburb_id"
-                  control={control}
-                  render={({ field }) => (
-                    <LocationCascadeSelects
-                      value={field.value}
-                      onChange={(id) => field.onChange(id > 0 ? id : undefined)}
-                      error={errors.suburb_id?.message}
-                    />
-                  )}
-                />
-              </div>
+              <Select
+                label="Asset Description"
+                required
+                {...register('asset_type')}
+                error={errors.asset_type?.message}
+              >
+                {LAND_ASSET_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </Select>
+              <Controller
+                name="suburb_id"
+                control={control}
+                render={({ field }) => (
+                  <LocationCascadeSelects
+                    variant="stand"
+                    value={field.value}
+                    onChange={(id) => field.onChange(id > 0 ? id : undefined)}
+                    error={errors.suburb_id?.message}
+                  />
+                )}
+              />
               <Input label="Stand Address" {...register('stand_address')} />
               <Input
                 label="Stand Number"
@@ -612,7 +710,7 @@ export function AssetRegistryForm({
                 required
               />
               <Input
-                label="Stand Size (sq.m)"
+                label="Stand Size"
                 {...register('stand_size')}
                 placeholder="e.g. 1200"
               />
@@ -643,25 +741,20 @@ export function AssetRegistryForm({
                 {...register('year_of_make', { valueAsNumber: true })}
                 error={errors.year_of_make?.message}
               />
-              <div>
-                <label className="text-xs font-medium text-slate-600">
-                  Condition
-                </label>
-                <select
-                  {...register('condition')}
-                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                  disabled={!assetConditionOptions.length}
-                >
-                  <option value="">
-                    {assetConditionOptions.length ? 'Select...' : 'Loading...'}
+              <Select
+                label="Condition"
+                {...register('condition')}
+                disabled={!assetConditionOptions.length}
+              >
+                <option value="">
+                  {assetConditionOptions.length ? 'Select...' : 'Loading...'}
+                </option>
+                {assetConditionOptions.map((c: any) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
                   </option>
-                  {assetConditionOptions.map((c: any) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                ))}
+              </Select>
               {isVehicle ? (
                 <>
                   <Input
@@ -672,10 +765,7 @@ export function AssetRegistryForm({
                     label="Chassis Number"
                     {...register('chassis_number')}
                   />
-                  <Input
-                    label="Engine Number"
-                    {...register('engine_number')}
-                  />
+                  <Input label="Engine Number" {...register('engine_number')} />
                 </>
               ) : null}
               {isMobile ? (
@@ -696,63 +786,52 @@ export function AssetRegistryForm({
         <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
           {isLand ? (
             <>
-              <div>
-                <label className="text-xs font-medium text-slate-600">
-                  Valuation Type<span className="text-red-500 ml-0.5">*</span>
-                </label>
-                <select
-                  {...register('valuation_type')}
-                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                >
-                  <option value="">Select...</option>
-                  {valuationOptions.map((o: any) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={errors.valuation_type?.message} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-slate-600">
-                  Title Status<span className="text-red-500 ml-0.5">*</span>
-                </label>
-                <select
-                  {...register('title_status')}
-                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                >
-                  <option value="">Select...</option>
-                  {titleStatusOptions.map((o: any) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={errors.title_status?.message} />
-              </div>
+              <Select
+                label="Valuation Type"
+                required
+                {...register('valuation_type')}
+                error={errors.valuation_type?.message}
+              >
+                <option value="">Select...</option>
+                {valuationOptions.map((o: any) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Title Status"
+                required
+                {...register('title_status')}
+                error={errors.title_status?.message}
+              >
+                <option value="">Select...</option>
+                {titleStatusOptions.map((o: any) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
             </>
           ) : null}
-          <div>
-            <label className="text-xs font-medium text-slate-600">
-              Currency<span className="text-red-500 ml-0.5">*</span>
-            </label>
-            <select
-              {...register('currency')}
-              className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              disabled={!currencies.length}
-            >
-              <option value="">
-                {currencies.length
-                  ? 'Select currency...'
-                  : 'Loading currencies...'}
+          <Select
+            label="Currency"
+            required
+            {...register('currency')}
+            disabled={!currencies.length}
+            error={errors.currency?.message}
+          >
+            <option value="">
+              {currencies.length
+                ? 'Select currency...'
+                : 'Loading currencies...'}
+            </option>
+            {currencies.map((currency) => (
+              <option key={currency.code} value={currency.code}>
+                {currency.code} - {currency.name}
               </option>
-              {currencies.map((currency) => (
-                <option key={currency.code} value={currency.code}>
-                  {currency.code} - {currency.name}
-                </option>
-              ))}
-            </select>
-          </div>
+            ))}
+          </Select>
           <Input
             label={isLand ? 'Value Amount' : 'Estimated Value'}
             type="number"
@@ -804,204 +883,197 @@ export function AssetRegistryForm({
 
         {!isLand ? (
           <>
-        {/* ── Custody Details ── */}
-        <FormSectionHeader title="Custody Details" variant="dark" />
-        <div className="space-y-3 p-4">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={Boolean(underCustody)}
-              onChange={(e) => {
-                setValue('under_custody', e.target.checked, {
-                  shouldValidate: true,
-                });
-                if (!e.target.checked) {
-                  setValue('custody_type', '');
-                  setValue('custodian_id', undefined);
-                  setCustodianSearchLabel('');
-                  clearCustodianAddress();
-                  setValue('custodian_email', '');
-                  setValue('custodian_mobile', '');
-                  setValue('custodian_telephone', '');
-                  setValue('guarantor_name', '');
-                  setValue('guarantor_identification', '');
-                  setGuarantorSelectedId(undefined);
-                }
-              }}
-            />
-            Asset is under custody of someone other than the owner
-          </label>
-
-          {underCustody ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div>
-                <label className="text-xs font-medium text-slate-600">
-                  Custodian Type
-                </label>
-                <select
-                  {...register('custodian_type', {
-                    onChange: () => {
+            {/* ── Custody Details ── */}
+            <FormSectionHeader title="Custody Details" variant="dark" />
+            <div className="space-y-3 p-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(underCustody)}
+                  onChange={(e) => {
+                    setValue('under_custody', e.target.checked, {
+                      shouldValidate: true,
+                    });
+                    if (!e.target.checked) {
+                      setValue('custody_type', '');
                       setValue('custodian_id', undefined);
                       setCustodianSearchLabel('');
                       clearCustodianAddress();
                       setValue('custodian_email', '');
                       setValue('custodian_mobile', '');
                       setValue('custodian_telephone', '');
-                    },
-                  })}
-                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                >
-                  {partyTypeOptions.map((option: any) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={errors.custodian_type?.message} />
-              </div>
-              <div className="col-span-2">
-                <Controller
-                  name="custodian_id"
-                  control={control}
-                  render={({ field }) => (
-                    <AutocompleteInput
-                      label="Custodian Name / ID/Reg Number"
-                      placeholder="Search custodian..."
-                      queryKey={`asset-custodian-${currentCustodianType}`}
-                      displayLabel={custodianSearchLabel}
-                      fetchFn={(q) =>
-                        currentCustodianType === 'company'
-                          ? companiesApi.searchBranches(q)
-                          : individualsApi.searchIndividuals(q)
-                      }
-                      resolveSelection={applyCustodianSelection}
-                      createLabel={
-                        currentCustodianType === 'company'
-                          ? 'Create company'
-                          : 'Create individual'
-                      }
-                      onCreateNew={() => {
-                        if (currentCustodianType === 'company') {
-                          setAddCustodianCompanyOpen(true);
-                        } else {
-                          setAddCustodianIndividualOpen(true);
-                        }
-                      }}
-                      error={errors.custodian_id?.message}
-                      value={field.value}
-                      onBlur={field.onBlur}
-                      onChange={(v) => {
-                        const id = Number(v) || undefined;
-                        field.onChange(id);
-                        if (!id) {
-                          setCustodianSearchLabel('');
-                          clearCustodianAddress();
-                          setValue('custodian_email', '');
-                          setValue('custodian_mobile', '');
-                          setValue('custodian_telephone', '');
-                        }
-                      }}
-                    />
-                  )}
-                />
-                <div className="mt-2 flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="primary"
-                    onClick={() => {
-                      if (currentCustodianType === 'company') {
-                        setAddCustodianCompanyOpen(true);
-                      } else {
-                        setAddCustodianIndividualOpen(true);
-                      }
-                    }}
-                  >
-                    +Add Custodian
-                  </Button>
-                </div>
-              </div>
-              <div className="col-span-2">
-                <Input
-                  label="Street Address"
-                  {...register('custodian_street_address')}
-                  placeholder="Street name, house/building number"
-                  required
-                  error={errors.custodian_street_address?.message}
-                />
-              </div>
-              <Controller
-                name="custodian_suburb_id"
-                control={control}
-                render={({ field }) => (
-                  <LocationCascadeSelects
-                    value={field.value}
-                    onChange={(id) =>
-                      field.onChange(id > 0 ? id : undefined)
+                      setValue('guarantor_name', '');
+                      setValue('guarantor_identification', '');
+                      setGuarantorSelectedId(undefined);
                     }
-                    error={errors.custodian_suburb_id?.message}
+                  }}
+                />
+                Asset is under custody of someone other than the owner
+              </label>
+
+              {underCustody ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Select
+                    label="Custodian Type"
+                    {...register('custodian_type', {
+                      onChange: () => {
+                        setValue('custodian_id', undefined);
+                        setCustodianSearchLabel('');
+                        clearCustodianAddress();
+                        setValue('custodian_email', '');
+                        setValue('custodian_mobile', '');
+                        setValue('custodian_telephone', '');
+                      },
+                    })}
+                    error={errors.custodian_type?.message}
+                  >
+                    {partyTypeOptions.map((option: any) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <div className="col-span-2">
+                    <Controller
+                      name="custodian_id"
+                      control={control}
+                      render={({ field }) => (
+                        <AutocompleteInput
+                          label="Custodian Name / ID/Reg Number"
+                          placeholder="Search custodian..."
+                          queryKey={`asset-custodian-${currentCustodianType}`}
+                          displayLabel={custodianSearchLabel}
+                          fetchFn={(q) =>
+                            currentCustodianType === 'company'
+                              ? companiesApi.searchBranches(q)
+                              : individualsApi.searchIndividuals(q)
+                          }
+                          resolveSelection={applyCustodianSelection}
+                          createLabel={
+                            currentCustodianType === 'company'
+                              ? 'Create company'
+                              : 'Create individual'
+                          }
+                          onCreateNew={() => {
+                            if (currentCustodianType === 'company') {
+                              setAddCustodianCompanyOpen(true);
+                            } else {
+                              setAddCustodianIndividualOpen(true);
+                            }
+                          }}
+                          error={errors.custodian_id?.message}
+                          value={field.value}
+                          onBlur={field.onBlur}
+                          onChange={(v) => {
+                            const id = Number(v) || undefined;
+                            field.onChange(id);
+                            if (!id) {
+                              setCustodianSearchLabel('');
+                              clearCustodianAddress();
+                              setValue('custodian_email', '');
+                              setValue('custodian_mobile', '');
+                              setValue('custodian_telephone', '');
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                    <div className="mt-2 flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="primary"
+                        onClick={() => {
+                          if (currentCustodianType === 'company') {
+                            setAddCustodianCompanyOpen(true);
+                          } else {
+                            setAddCustodianIndividualOpen(true);
+                          }
+                        }}
+                      >
+                        +Add Custodian
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <Input
+                      label="Street Address"
+                      {...register('custodian_street_address')}
+                      placeholder="Street name, house/building number"
+                      required
+                      error={errors.custodian_street_address?.message}
+                    />
+                  </div>
+                  <Controller
+                    name="custodian_suburb_id"
+                    control={control}
+                    render={({ field }) => (
+                      <LocationCascadeSelects
+                        value={field.value}
+                        onChange={(id) =>
+                          field.onChange(id > 0 ? id : undefined)
+                        }
+                        error={errors.custodian_suburb_id?.message}
+                      />
+                    )}
                   />
-                )}
-              />
-              <Input label="Mobile" {...register('custodian_mobile')} />
-              <Input label="Email" {...register('custodian_email')} />
-              <Input label="Telephone" {...register('custodian_telephone')} />
-              <div>
-                <label className="text-xs font-medium text-slate-600">
-                  Custody Type
-                </label>
-                <select
-                  {...register('custody_type')}
-                  className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-                >
-                  <option value="">Select custody type...</option>
-                  {custodyTypeOptions.map((option: any) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <FieldError message={errors.custody_type?.message} />
-              </div>
-              <AutocompleteInput
-                label="Guarantor"
-                placeholder="Search individuals..."
-                queryKey="asset-guarantor-name"
-                minChars={1}
-                displayLabel={guarantorName}
-                value={guarantorSelectedId}
-                fetchFn={(q) => individualsApi.searchIndividuals(q)}
-                resolveSelection={applyGuarantorSelection}
-                onChange={clearGuarantorSelection}
-                onCreateNew={() => setAddGuarantorOpen(true)}
-                createLabel="Create individual"
-              />
-              <AutocompleteInput
-                label="Guarantor ID"
-                placeholder="Search by ID number..."
-                queryKey="asset-guarantor-id"
-                minChars={1}
-                displayLabel={guarantorIdentification}
-                value={guarantorSelectedId}
-                fetchFn={(q) => individualsApi.searchIndividuals(q)}
-                resolveSelection={applyGuarantorSelection}
-                onChange={clearGuarantorSelection}
-                onCreateNew={() => setAddGuarantorOpen(true)}
-                createLabel="Create individual"
-              />
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="primary"
-                  onClick={() => setAddGuarantorOpen(true)}
-                >
-                  +Add Guarantor
-                </Button>
-              </div>
+                  <Input label="Mobile" {...register('custodian_mobile')} />
+                  <Input label="Email" {...register('custodian_email')} />
+                  <Input
+                    label="Telephone"
+                    {...register('custodian_telephone')}
+                  />
+                  <Select
+                    label="Custody Type"
+                    {...register('custody_type')}
+                    error={errors.custody_type?.message}
+                  >
+                    <option value="">Select custody type...</option>
+                    {custodyTypeOptions.map((option: any) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <AutocompleteInput
+                    label="Guarantor"
+                    placeholder="Search individuals..."
+                    queryKey="asset-guarantor-name"
+                    minChars={1}
+                    displayLabel={guarantorName}
+                    value={guarantorSelectedId}
+                    fetchFn={(q) => individualsApi.searchIndividuals(q)}
+                    resolveSelection={applyGuarantorSelection}
+                    onChange={clearGuarantorSelection}
+                    onCreateNew={() => setAddGuarantorOpen(true)}
+                    createLabel="Create individual"
+                  />
+                  <AutocompleteInput
+                    label="Guarantor ID"
+                    placeholder="Search by ID number..."
+                    queryKey="asset-guarantor-id"
+                    minChars={1}
+                    displayLabel={guarantorIdentification}
+                    value={guarantorSelectedId}
+                    fetchFn={(q) => individualsApi.searchIndividuals(q)}
+                    resolveSelection={applyGuarantorSelection}
+                    onChange={clearGuarantorSelection}
+                    onCreateNew={() => setAddGuarantorOpen(true)}
+                    createLabel="Create individual"
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setAddGuarantorOpen(true)}
+                    >
+                      +Add Guarantor
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
           </>
         ) : null}
 
@@ -1024,9 +1096,12 @@ export function AssetRegistryForm({
       >
         <IndividualCreateForm
           onCancel={() => setAddIndividualOpen(false)}
-          onSuccess={({ id }) => {
+          onSuccess={({ id, identification_number }) => {
             setValue('owner_type', 'individual');
             setValue('owner_id', id, { shouldValidate: true });
+            if (isLand) {
+              setOwnerIdRegLabel(identification_number ?? '');
+            }
             setAddIndividualOpen(false);
           }}
         />
@@ -1040,9 +1115,12 @@ export function AssetRegistryForm({
       >
         <CompanyCreateForm
           onCancel={() => setAddCompanyOpen(false)}
-          onSuccess={({ id }) => {
+          onSuccess={({ id, registration_number }) => {
             setValue('owner_type', 'company');
             setValue('owner_id', id, { shouldValidate: true });
+            if (isLand) {
+              setOwnerIdRegLabel(registration_number ?? '');
+            }
             setAddCompanyOpen(false);
           }}
         />

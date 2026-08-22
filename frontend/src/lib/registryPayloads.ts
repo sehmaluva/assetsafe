@@ -188,6 +188,7 @@ export function mapOwnershipChangeToApi(data: Record<string, unknown>) {
     valuation_type: data.valuation_type ?? '',
     title_status: data.title_status ?? '',
     terms: data.terms ?? '',
+    currency: data.currency ?? null,
     value_amount: data.value_amount ?? null,
   };
 }

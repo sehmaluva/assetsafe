@@ -9,6 +9,7 @@ import { individualsApi } from '@/api/individualsApi';
 import { commonApi } from '@/api/commonApi';
 import { queryOptions } from '@/api/queryOptions';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { LocationCascadeSelects } from '@/components/shared/LocationCascadeSelects';
 
@@ -130,25 +131,22 @@ export function IndividualCreateForm({
           error={errors.last_name?.message}
           required
         />
-        <div>
-          <label className="text-xs font-medium text-slate-600">ID Type</label>
-          <select
-            {...register('identification_type')}
-            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm"
-            disabled={!identificationTypeOptions.length}
-          >
-            <option value="">
-              {identificationTypeOptions.length
-                ? 'Select ID type...'
-                : 'Loading ID types...'}
+        <Select
+          label="ID Type"
+          {...register('identification_type')}
+          disabled={!identificationTypeOptions.length}
+        >
+          <option value="">
+            {identificationTypeOptions.length
+              ? 'Select ID type...'
+              : 'Loading ID types...'}
+          </option>
+          {identificationTypeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
-            {identificationTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+          ))}
+        </Select>
         <Input
           label="ID Number"
           {...register('identification_number')}

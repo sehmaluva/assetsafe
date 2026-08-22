@@ -2,6 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAutocomplete } from '@/hooks/useAutocomplete';
 import { searchOptionKey, type SearchOption } from '@/lib/searchResults';
 import { cn } from '@/lib/utils';
+import {
+  formControlClassName,
+  formErrorClassName,
+  formFieldWrapperClassName,
+  formLabelClassName,
+} from '@/lib/formFieldStyles';
 
 interface Props {
   label?: string;
@@ -18,6 +24,8 @@ interface Props {
   onCreateNew?: (query: string) => void;
   createLabel?: string;
   resolveSelection?: (item: SearchOption) => Promise<number>;
+  /** Text shown in the input after selection (defaults to item.name). */
+  selectionDisplay?: (item: SearchOption) => string;
   /** Parent data still loading (e.g. client users for Data Source). */
   externalLoading?: boolean;
   loadingLabel?: string;
@@ -38,6 +46,7 @@ export function AutocompleteInput({
   onCreateNew,
   createLabel = 'Create',
   resolveSelection,
+  selectionDisplay,
   externalLoading = false,
   loadingLabel = 'Fetching...',
 }: Props) {
@@ -87,7 +96,7 @@ export function AutocompleteInput({
       if (resolvedId == null) {
         throw new Error('Invalid selection');
       }
-      setQuery(item.name);
+      setQuery(selectionDisplay ? selectionDisplay(item) : item.name);
       setShowList(false);
       onChange?.(resolvedId);
     } finally {
@@ -96,43 +105,40 @@ export function AutocompleteInput({
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={formFieldWrapperClassName} ref={containerRef}>
       {label ? (
-        <label className="text-xs font-medium text-slate-700">
+        <label className={formLabelClassName}>
           {label}
           {required ? <span className="text-red-500 ml-0.5">*</span> : null}
         </label>
       ) : null}
 
-      <input
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setShowList(true);
-          if (!e.target.value.trim() && value) {
-            onChange?.(0);
-          }
-        }}
-        onFocus={() => setShowList(true)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        autoComplete="off"
-        className={cn(
-          'h-8 w-full rounded-sm border border-slate-500 bg-white px-2.5 text-sm text-slate-900',
-          'placeholder:text-slate-400 focus:border-black focus:outline-none focus:ring-0',
-          error && 'border-red-500 focus:border-red-500',
-        )}
-      />
+      <div className="relative">
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setShowList(true);
+            if (!e.target.value.trim() && value) {
+              onChange?.(0);
+            }
+          }}
+          onFocus={() => setShowList(true)}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          autoComplete="off"
+          className={formControlClassName({ error: Boolean(error) })}
+        />
 
-      {showPanel ? (
-        <div
-          className={cn(
-            'absolute z-[60] mt-1 overflow-hidden rounded border border-slate-300 bg-white shadow-md',
-            isEmptyState
-              ? 'w-max min-w-[13rem] max-w-[17rem]'
-              : 'max-h-48 w-full overflow-auto',
-          )}
-        >
+        {showPanel ? (
+          <div
+            className={cn(
+              'absolute left-0 top-full z-[60] mt-1 overflow-hidden rounded border border-slate-300 bg-white shadow-md',
+              isEmptyState
+                ? 'w-max min-w-full max-w-[17rem]'
+                : 'max-h-48 w-full overflow-auto',
+            )}
+          >
           {!searchEnabled ? (
             <div className="p-2 text-sm text-slate-500">
               Type at least {minChars} characters to search
@@ -184,8 +190,9 @@ export function AutocompleteInput({
           )}
         </div>
       ) : null}
+      </div>
 
-      {error ? <p className="text-xs text-red-500">{error}</p> : null}
+      {error ? <p className={formErrorClassName}>{error}</p> : null}
     </div>
   );
 }

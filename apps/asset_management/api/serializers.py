@@ -32,6 +32,38 @@ _OWNER_TYPE_COMPANY = "company"
 _CUSTODIAN_TYPE_INDIVIDUAL = "individual"
 _CUSTODIAN_TYPE_COMPANY = "company"
 
+
+def _individual_display_name(individual: Individual | None) -> str | None:
+    if not individual:
+        return None
+    name = individual.full_name.strip()
+    return name or None
+
+
+def _company_branch_display_name(branch: CompanyBranch | None) -> str | None:
+    if not branch:
+        return None
+    company = branch.company
+    company_name = (
+        (company.trading_name or company.registration_name or "").strip()
+        if company
+        else ""
+    )
+    branch_name = (branch.branch_name or "").strip()
+    if (
+        branch_name
+        and company_name
+        and branch_name.lower()
+        not in {
+            company_name.lower(),
+            (company.registration_name or "").strip().lower(),
+            (company.trading_name or "").strip().lower(),
+        }
+        and not branch.is_headquarters
+    ):
+        return f"{company_name} — {branch_name}"
+    return company_name or branch_name or None
+
 _IDENTIFIER_TEXT_FIELDS: tuple[str, ...] = (
     "serial_number",
     "owner_asset_number",
@@ -202,6 +234,12 @@ class OwnershipChangeWriteSerializer(serializers.Serializer):
     valuation_type = serializers.CharField(required=False, allow_blank=True)
     title_status = serializers.CharField(required=False, allow_blank=True)
     terms = serializers.CharField(required=False, allow_blank=True)
+    currency = serializers.SlugRelatedField(
+        slug_field="code",
+        queryset=Currency.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     value_amount = serializers.DecimalField(
         max_digits=18, decimal_places=2, required=False, allow_null=True
     )
@@ -265,9 +303,9 @@ class StandSaleTransitionReadSerializer(serializers.ModelSerializer):
 
     def get_purchaser_display(self, obj: StandSaleTransition) -> str | None:
         if obj.purchaser_type == _OWNER_TYPE_INDIVIDUAL and obj.individual_purchaser:
-            return str(obj.individual_purchaser)
+            return _individual_display_name(obj.individual_purchaser)
         if obj.company_purchaser:
-            return str(obj.company_purchaser)
+            return _company_branch_display_name(obj.company_purchaser)
         return None
 
     def get_purchaser_id_reg(self, obj: StandSaleTransition) -> str | None:
@@ -310,13 +348,13 @@ class AssetRegistrationSerializer(serializers.ModelSerializer):
 
     def get_owner_display(self, obj: AssetRegistration) -> str | None:
         if obj.owner_type == _OWNER_TYPE_INDIVIDUAL and obj.individual_owner:
-            return str(obj.individual_owner)
+            return _individual_display_name(obj.individual_owner)
         if obj.owner_type == _OWNER_TYPE_COMPANY and obj.company_owner:
-            return str(obj.company_owner)
+            return _company_branch_display_name(obj.company_owner)
         if obj.individual_owner:
-            return str(obj.individual_owner)
+            return _individual_display_name(obj.individual_owner)
         if obj.company_owner:
-            return str(obj.company_owner)
+            return _company_branch_display_name(obj.company_owner)
         return None
 
     def get_owner_id_reg(self, obj: AssetRegistration) -> str | None:

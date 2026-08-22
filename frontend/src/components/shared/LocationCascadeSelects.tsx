@@ -7,12 +7,22 @@ import type {
   SuburbOption,
 } from '@/api/locationsApi';
 import { FieldError } from './FieldError';
-import { cn } from '@/lib/utils';
+import {
+  formControlClassName,
+  formFieldWrapperClassName,
+  formLabelClassName,
+} from '@/lib/formFieldStyles';
 
 interface Props {
   value?: number;
   onChange: (suburbId: number) => void;
   error?: string;
+  /** Stand registration (1416): City/Town → Suburb/Area/Development, hide Country */
+  variant?: 'default' | 'stand';
+  hideCountry?: boolean;
+  suburbLabel?: string;
+  cityLabel?: string;
+  suburbRequired?: boolean;
 }
 
 // ─── Generic searchable combobox ──────────────────────────────────────────────
@@ -62,31 +72,29 @@ function Combobox<T extends { id: number; name: string }>({
     : options;
 
   return (
-    <div ref={ref} className="relative">
-      <label className="text-xs font-medium text-slate-600">
+    <div ref={ref} className={formFieldWrapperClassName}>
+      <label className={formLabelClassName}>
         {label}
         {required && <span className="ml-0.5 text-red-500">*</span>}
       </label>
-      <input
-        value={query}
-        placeholder={placeholder}
-        autoComplete="off"
-        onFocus={() => setOpen(true)}
-        onChange={(e) => {
-          const val = e.target.value;
-          setQuery(val);
-          setOpen(true);
-          // Only propagate a deselect when the field is fully cleared.
-          // Typing must NOT clear downstream selections.
-          if (val === '') onSelect(null);
-        }}
-        className={cn(
-          'mt-1 h-8 w-full rounded border bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]',
-          error ? 'border-red-500' : 'border-slate-300',
-        )}
-      />
-      {open && (
-        <div className="absolute z-[70] mt-0.5 max-h-52 w-full overflow-auto rounded border border-slate-300 bg-white shadow-md">
+      <div className="relative">
+        <input
+          value={query}
+          placeholder={placeholder}
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setQuery(val);
+            setOpen(true);
+            // Only propagate a deselect when the field is fully cleared.
+            // Typing must NOT clear downstream selections.
+            if (val === '') onSelect(null);
+          }}
+          className={formControlClassName({ error: Boolean(error) })}
+        />
+        {open && (
+          <div className="absolute left-0 top-full z-[70] mt-1 max-h-52 w-full overflow-auto rounded border border-slate-300 bg-white shadow-md">
           {isLoading ? (
             <p className="px-3 py-2 text-sm text-slate-400">Loading...</p>
           ) : filtered.length === 0 ? (
@@ -108,7 +116,8 @@ function Combobox<T extends { id: number; name: string }>({
             ))
           )}
         </div>
-      )}
+        )}
+      </div>
       <FieldError message={error} />
     </div>
   );
@@ -122,7 +131,20 @@ function sorted<T extends { name: string }>(arr: T[]): T[] {
   return [...arr].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function LocationCascadeSelects({ value, onChange, error }: Props) {
+export function LocationCascadeSelects({
+  value,
+  onChange,
+  error,
+  variant = 'default',
+  hideCountry = false,
+  suburbLabel: suburbLabelProp,
+  cityLabel: cityLabelProp,
+  suburbRequired = true,
+}: Props) {
+  const isStand = variant === 'stand';
+  const suburbLabel =
+    suburbLabelProp ?? (isStand ? 'Suburb/Area/Development' : 'Suburb');
+  const cityLabel = cityLabelProp ?? (isStand ? 'City/Town' : 'City');
   const [country, setCountry] = useState<CountryOption | null>(null);
   const [city, setCity] = useState<CityOption | null>(null);
   const [suburb, setSuburb] = useState<SuburbOption | null>(null);
@@ -252,6 +274,23 @@ export function LocationCascadeSelects({ value, onChange, error }: Props) {
     if (found) setCountry(found);
   }, [suburb, country, countries]);
 
+  // External suburb id (react-hook-form) → populate comboboxes
+  useEffect(() => {
+    if (!value || value <= 0) {
+      if (suburb) {
+        setSuburb(null);
+        setCity(null);
+        setCountry(null);
+      }
+      return;
+    }
+    if (suburb?.id === value) return;
+    if (allSuburbs.length === 0) return;
+
+    const found = allSuburbs.find((s) => s.id === value) ?? null;
+    if (found) setSuburb(found);
+  }, [value, allSuburbs, suburb?.id]);
+
   // ── derived option lists ──────────────────────────────────────────────────
   //
   // Suburb pool priority:
@@ -323,34 +362,65 @@ export function LocationCascadeSelects({ value, onChange, error }: Props) {
     // When item is set, city & country fill reactively via the useEffects above
   };
 
+  const cityField = (
+    <Combobox<CityOption>
+      label={cityLabel}
+      required={isStand}
+      placeholder="Search city…"
+      options={cityOptions}
+      selected={city}
+      onSelect={handleCitySelect}
+      isLoading={country ? loadingCitiesForCountry : loadingCities}
+    />
+  );
+
+  const suburbField = (
+    <Combobox<SuburbOption>
+      label={suburbLabel}
+      required={suburbRequired}
+      placeholder="Search suburb…"
+      options={suburbOptions}
+      selected={suburb}
+      onSelect={handleSuburbSelect}
+      error={error}
+      isLoading={city ? loadingSuburbsForCity : loadingSuburbs}
+    />
+  );
+
+  const countryField = (
+    <Combobox<CountryOption>
+      label="Country"
+      placeholder="Search country…"
+      options={countryOptions}
+      selected={country}
+      onSelect={handleCountrySelect}
+      isLoading={loadingCountries}
+    />
+  );
+
+  if (isStand) {
+    return (
+      <>
+        {cityField}
+        {suburbField}
+      </>
+    );
+  }
+
+  if (hideCountry) {
+    return (
+      <>
+        {suburbField}
+        {cityField}
+      </>
+    );
+  }
+
   return (
     <>
-      <Combobox<SuburbOption>
-        label="Suburb"
-        required
-        placeholder="Search suburb…"
-        options={suburbOptions}
-        selected={suburb}
-        onSelect={handleSuburbSelect}
-        error={error}
-        isLoading={city ? loadingSuburbsForCity : loadingSuburbs}
-      />
-      <Combobox<CityOption>
-        label="City"
-        placeholder="Search city…"
-        options={cityOptions}
-        selected={city}
-        onSelect={handleCitySelect}
-        isLoading={country ? loadingCitiesForCountry : loadingCities}
-      />
-      <Combobox<CountryOption>
-        label="Country"
-        placeholder="Search country…"
-        options={countryOptions}
-        selected={country}
-        onSelect={handleCountrySelect}
-        isLoading={loadingCountries}
-      />
+      {suburbField}
+      {cityField}
+      {countryField}
     </>
   );
 }

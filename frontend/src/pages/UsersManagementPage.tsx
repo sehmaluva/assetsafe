@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { NumberedPaginationFooter } from '@/components/shared/NumberedPaginationFooter';
 import { Modal } from '@/components/shared/Modal';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import AutocompleteInput from '@/components/shared/AutocompleteInput';
 import { ClientCreateForm } from '@/components/clients/ClientCreateForm';
 import { formatDate } from '@/lib/utils';
@@ -240,25 +241,20 @@ export default function UsersManagementPage() {
               </Button>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-slate-600">
-                Client type
-              </label>
-              <select
-                value={clientEntityType}
-                onChange={(e) => {
-                  setClientEntityType(
-                    e.target.value as 'individual' | 'company',
-                  );
-                  setClientId(undefined);
-                  setClientLabel('');
-                }}
-                className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-              >
-                <option value="company">Company</option>
-                <option value="individual">Individual</option>
-              </select>
-            </div>
+            <Select
+              label="Client type"
+              value={clientEntityType}
+              onChange={(e) => {
+                setClientEntityType(
+                  e.target.value as 'individual' | 'company',
+                );
+                setClientId(undefined);
+                setClientLabel('');
+              }}
+            >
+              <option value="company">Company</option>
+              <option value="individual">Individual</option>
+            </Select>
 
             <AutocompleteInput
               label="Link client"

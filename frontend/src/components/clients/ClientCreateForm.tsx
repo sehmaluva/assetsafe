@@ -6,6 +6,7 @@ import { individualsApi } from '@/api/individualsApi';
 import { companiesApi } from '@/api/companiesApi';
 import AutocompleteInput from '@/components/shared/AutocompleteInput';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/shared/Modal';
 import { IndividualCreateForm } from '@/components/individuals/IndividualCreateForm';
 import { CompanyCreateForm } from '@/components/companies/CompanyCreateForm';
@@ -74,23 +75,18 @@ export function ClientCreateForm({
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4 p-4" noValidate>
-        <div>
-          <label className="text-xs font-medium text-slate-600">
-            Client Type
-          </label>
-          <select
-            value={entityType}
-            onChange={(e) => {
-              setEntityType(e.target.value as 'individual' | 'company');
-              setEntityId(0);
-              setEntityError('');
-            }}
-            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-          >
-            <option value="company">Company</option>
-            <option value="individual">Individual</option>
-          </select>
-        </div>
+        <Select
+          label="Client Type"
+          value={entityType}
+          onChange={(e) => {
+            setEntityType(e.target.value as 'individual' | 'company');
+            setEntityId(0);
+            setEntityError('');
+          }}
+        >
+          <option value="company">Company</option>
+          <option value="individual">Individual</option>
+        </Select>
 
         <AutocompleteInput
           label={entityType === 'individual' ? 'Individual' : 'Company Branch'}

@@ -31,21 +31,27 @@ function unwrapRecord(data: unknown): Record<string, unknown> {
 
 export interface BranchContactDetails {
   id: number;
+  name: string;
+  registration_number: string;
   email: string;
   phone: string;
   telephone: string;
   address: string;
   street_address: string;
   suburb_id?: number;
+  suburb_name?: string;
+  city_name?: string;
 }
 
 function parseAddress(addr: unknown): {
   address: string;
   street_address: string;
   suburb_id?: number;
+  suburb_name: string;
+  city_name: string;
 } {
   if (!addr || typeof addr !== 'object') {
-    return { address: '', street_address: '' };
+    return { address: '', street_address: '', suburb_name: '', city_name: '' };
   }
   const row = addr as Record<string, unknown>;
   const street_address = String(row.street_address ?? '').trim();
@@ -58,10 +64,14 @@ function parseAddress(addr: unknown): {
       ? (row.city as { name?: string })
       : null;
   const suburbId = suburb?.id != null ? Number(suburb.id) : undefined;
+  const suburb_name = suburb?.name ?? '';
+  const city_name = city?.name ?? '';
   return {
     street_address,
     suburb_id: suburbId && suburbId > 0 ? suburbId : undefined,
-    address: [street_address, suburb?.name ?? '', city?.name ?? '']
+    suburb_name,
+    city_name,
+    address: [street_address, suburb_name, city_name]
       .map((p) => p.trim())
       .filter(Boolean)
       .join(', '),
@@ -135,14 +145,69 @@ export const companiesApi = {
         ? (record.profile as Record<string, unknown>)
         : null;
     const parsed = parseAddress(record.primary_address);
+    const company =
+      record.company && typeof record.company === 'object'
+        ? (record.company as Record<string, unknown>)
+        : null;
+    const branchName = String(record.branch_name ?? '').trim();
+    const companyName = String(
+      company?.trading_name ?? company?.registration_name ?? '',
+    ).trim();
+    const isHq = record.is_headquarters === true;
+    const branchIsDistinct =
+      Boolean(branchName) &&
+      Boolean(companyName) &&
+      !isHq &&
+      branchName.toLowerCase() !== companyName.toLowerCase();
+    const name = branchIsDistinct
+      ? `${companyName} — ${branchName}`
+      : companyName || branchName;
     return {
       id: Number(record.id),
+      name,
+      registration_number: String(company?.registration_number ?? ''),
       email: String(record.email ?? profile?.email ?? ''),
       phone: String(record.phone ?? profile?.mobile_phone ?? ''),
       telephone: String(profile?.landline_phone ?? ''),
       address: parsed.address,
       street_address: parsed.street_address,
       suburb_id: parsed.suburb_id,
+      suburb_name: parsed.suburb_name,
+      city_name: parsed.city_name,
     };
+  },
+
+  updateBranchContact: async (
+    id: number,
+    contact: {
+      email?: string;
+      street?: string;
+      suburb_id?: number;
+      mobile?: string;
+    },
+  ): Promise<void> => {
+    if (Object.keys(contact).length === 0) return;
+
+    const payload: Record<string, unknown> = {};
+
+    if (contact.email !== undefined) {
+      payload.email = contact.email;
+    }
+    if (contact.mobile !== undefined) {
+      payload.phone = contact.mobile;
+    }
+    if (contact.street !== undefined && contact.suburb_id && contact.suburb_id > 0) {
+      payload.addresses = [
+        {
+          street_address: contact.street,
+          suburb: contact.suburb_id,
+          is_primary: true,
+        },
+      ];
+    }
+
+    if (Object.keys(payload).length === 0) return;
+
+    await axiosInstance.patch(`/companies/branches/${id}/`, payload);
   },
 };
