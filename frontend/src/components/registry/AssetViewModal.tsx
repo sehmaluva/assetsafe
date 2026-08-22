@@ -12,7 +12,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { assetTypeLabel } from '@/lib/assetTypes';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
-import { DeleteRecordButton } from '@/components/shared/DeleteRecordButton';
+// import { DeleteRecordButton } from '@/components/shared/DeleteRecordButton';
 import { assetRegistryApi } from '@/api/assetRegistryApi';
 
 interface AssetViewModalProps {
@@ -58,8 +58,8 @@ export function AssetViewModal({
       onClose={onClose}
       title={
         isLand
-          ? `Stand — ${record.registration_number}`
-          : `Asset — ${record.registration_number}`
+          ? `Stand - ${record.registration_number}`
+          : `Asset - ${record.registration_number}`
       }
       size="xl"
     >
@@ -90,11 +90,13 @@ export function AssetViewModal({
             />
           ) : null}
           {standPanel === 'view' ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-4 py-3">
+              {/* Delete disabled for now
               <DeleteRecordButton
                 onDelete={() => assetRegistryApi.deleteRecord(record.id)}
                 onDeleted={onDeleted}
               />
+              */}
               <Button variant="ghost" onClick={onClose}>
                 Close
               </Button>
@@ -106,7 +108,11 @@ export function AssetViewModal({
           <AssetRegistryForm
             isEdit
             recordId={record.id}
-            ownerDisplayLabel={detail.owner_name}
+            ownerDisplayLabel={
+              detail.asset_category === 'land'
+                ? (detail.owner_id_reg ?? '')
+                : detail.owner_name
+            }
             initial={{
               owner_type: detail.owner_type,
               owner_id: detail.owner_id,
@@ -193,11 +199,13 @@ export function AssetViewModal({
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            {/* Delete disabled for now
             <DeleteRecordButton
               onDelete={() => assetRegistryApi.deleteRecord(record.id)}
               onDeleted={onDeleted}
             />
+            */}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={onClose}>
                 Close

@@ -28,7 +28,7 @@ export function AssetEnquiryReportPanel({
       : 'Asset Status - Encumbered';
 
   const statusClass = isSold
-    ? 'bg-[#ef6c00]'
+    ? 'bg-[#c62828]'
     : isClear
       ? 'bg-[#2e7d32]'
       : 'bg-[#c62828]';

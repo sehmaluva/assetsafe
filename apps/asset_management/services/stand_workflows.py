@@ -22,6 +22,27 @@ def _snapshot_owner(asset: AssetRegistration) -> dict:
     }
 
 
+def _is_same_owner(
+    asset: AssetRegistration,
+    owner_type: str,
+    individual_owner,
+    company_owner,
+) -> bool:
+    if asset.owner_type != owner_type:
+        return False
+    if owner_type == PartyType.INDIVIDUAL:
+        return (
+            asset.individual_owner_id is not None
+            and individual_owner is not None
+            and asset.individual_owner_id == individual_owner.pk
+        )
+    return (
+        asset.company_owner_id is not None
+        and company_owner is not None
+        and asset.company_owner_id == company_owner.pk
+    )
+
+
 @transaction.atomic
 def record_sale_transition(
     asset: AssetRegistration,
@@ -89,11 +110,15 @@ def record_ownership_change(
     valuation_type: str = "",
     title_status: str = "",
     terms: str = "",
+    currency=None,
     value_amount=None,
     user,
 ) -> AssetRegistration:
     if asset.asset_category != BaseAssetType.LAND:
         raise ValueError("Ownership change is only valid for land assets.")
+
+    if _is_same_owner(asset, owner_type, individual_owner, company_owner):
+        raise ValueError("The new owner cannot be the same as the current owner.")
 
     previous = _snapshot_owner(asset)
     open_sale = asset.get_open_sale_transition()
@@ -105,6 +130,10 @@ def record_ownership_change(
     else:
         asset.company_owner = company_owner
         asset.individual_owner = None
+    if currency is not None:
+        asset.currency = currency
+    if value_amount is not None:
+        asset.estimated_value = value_amount
     asset.updated_by = user
     asset.save()
 

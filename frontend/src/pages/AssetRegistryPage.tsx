@@ -17,6 +17,7 @@ import { InlineStat } from '@/components/shared/InlineStat';
 import { TableSkeleton } from '@/components/shared/TableSkeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/shared/Modal';
 import { AssetRegistryForm } from '@/components/registry/AssetRegistryForm';
 import { AssetViewModal } from '@/components/registry/AssetViewModal';
@@ -180,13 +181,13 @@ export default function AssetRegistryPage() {
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#8f8f8f] px-3 py-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[12px] font-bold text-black">Search</span>
-            <select
+            <Select
               value={filterAssetType}
               onChange={(e) => {
                 setFilterAssetType(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-7 min-w-[120px] rounded-none border border-black bg-white px-2 text-[12px]"
+              className="h-7 min-w-[120px] rounded-none border-black text-[12px] leading-7"
             >
               <option value="">All categories</option>
               {assetCategoryOptions.map((t: any) => (
@@ -194,7 +195,7 @@ export default function AssetRegistryPage() {
                   {t.label}
                 </option>
               ))}
-            </select>
+            </Select>
             <input
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}

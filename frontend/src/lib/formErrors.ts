@@ -4,6 +4,7 @@ import type {
   Path,
   UseFormSetError,
 } from 'react-hook-form';
+import { toast } from 'sonner';
 
 /** Maps API / serializer field names to form field names. */
 const API_FIELD_MAP: Record<string, string> = {
@@ -117,6 +118,19 @@ export function getApiErrorMessage(err: unknown): string | undefined {
     return String(body.non_field_errors[0]);
   }
   return undefined;
+}
+
+/** Apply field errors when possible; otherwise toast the API message. */
+export function handleFormSubmitError<T extends FieldValues>(
+  setError: UseFormSetError<T>,
+  err: unknown,
+  fallbackMessage: string,
+): void {
+  if (applyApiValidationErrors(setError, err)) {
+    toast.error('Please fix the highlighted fields');
+    return;
+  }
+  toast.error(getApiErrorMessage(err) ?? fallbackMessage);
 }
 
 /** Returns the first validation message from a react-hook-form errors object. */

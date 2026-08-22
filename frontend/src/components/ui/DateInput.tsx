@@ -1,5 +1,10 @@
 import React from 'react';
-import { cn } from '@/lib/utils';
+import {
+  formControlClassName,
+  formErrorClassName,
+  formFieldWrapperClassName,
+  formLabelClassName,
+} from '@/lib/formFieldStyles';
 
 interface DateInputProps {
   label?: string;
@@ -39,12 +44,9 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
       value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
 
     return (
-      <div className="flex flex-col gap-1">
+      <div className={formFieldWrapperClassName}>
         {label && (
-          <label
-            htmlFor={inputId}
-            className="text-xs font-medium text-slate-700"
-          >
+          <label htmlFor={inputId} className={formLabelClassName}>
             {label}
             {required && <span className="text-red-500 ml-0.5">*</span>}
           </label>
@@ -60,17 +62,13 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
           onChange={(e) => onChange?.(e.target.value)}
           onBlur={onBlur}
           disabled={disabled}
-          className={cn(
-            'h-8 w-full rounded-sm border border-slate-500 bg-white px-2.5 text-sm text-slate-900',
-            'focus:border-black focus:outline-none focus:ring-0',
-            'disabled:cursor-not-allowed disabled:bg-slate-100',
-            '[&::-webkit-calendar-picker-indicator]:cursor-pointer',
-            '[&::-webkit-calendar-picker-indicator]:opacity-60',
-            '[&::-webkit-calendar-picker-indicator]:hover:opacity-100',
-            error && 'border-red-500 focus:border-red-500',
-          )}
+          className={formControlClassName({
+            error: Boolean(error),
+            className:
+              '[&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100',
+          })}
         />
-        {error && <p className="text-xs text-red-500">{error}</p>}
+        {error && <p className={formErrorClassName}>{error}</p>}
       </div>
     );
   },

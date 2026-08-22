@@ -8,6 +8,7 @@ import { companiesApi } from '@/api/companiesApi';
 import { commonApi } from '@/api/commonApi';
 import { queryOptions } from '@/api/queryOptions';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { LocationCascadeSelects } from '@/components/shared/LocationCascadeSelects';
 
@@ -37,7 +38,11 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 interface CompanyCreateFormProps {
-  onSuccess: (result: { id: number; name: string }) => void;
+  onSuccess: (result: {
+    id: number;
+    name: string;
+    registration_number?: string;
+  }) => void;
   onCancel: () => void;
 }
 
@@ -64,8 +69,8 @@ export function CompanyCreateForm({
   const industryOptions = choices.Industry ?? [];
 
   const { mutate: submit, isPending } = useMutation({
-    mutationFn: (values: FormValues) =>
-      companiesApi.createCompany({
+    mutationFn: async (values: FormValues) => {
+      const result = await companiesApi.createCompany({
         registration_number: values.registration_number,
         registration_name: values.registration_name,
         trading_name: values.trading_name,
@@ -83,7 +88,12 @@ export function CompanyCreateForm({
             suburb_id: values.suburb_id,
           },
         ],
-      }),
+      });
+      return {
+        ...result,
+        registration_number: values.registration_number,
+      };
+    },
     onSuccess: (result) => {
       toast.success('Company created');
       onSuccess(result);
@@ -129,49 +139,31 @@ export function CompanyCreateForm({
           required
           className="col-span-2"
         />
-        <div>
-          <label className="text-xs font-medium text-slate-600">
-            Legal Status
-            <span className="ml-0.5 text-red-500">*</span>
-          </label>
-          <select
-            {...register('legal_status')}
-            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-          >
-            {LEGAL_STATUS_CHOICES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {errors.legal_status?.message ? (
-            <p className="mt-1 text-xs text-red-600">
-              {errors.legal_status.message}
-            </p>
-          ) : null}
-        </div>
-        <div>
-          <label className="text-xs font-medium text-slate-600">
-            Industry
-            <span className="ml-0.5 text-red-500">*</span>
-          </label>
-          <select
-            {...register('industry')}
-            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm focus:outline-none focus:border-[#0f7d8e]"
-          >
-            <option value="">Select industry...</option>
-            {industryOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {errors.industry?.message ? (
-            <p className="mt-1 text-xs text-red-600">
-              {errors.industry.message}
-            </p>
-          ) : null}
-        </div>
+        <Select
+          label="Legal Status"
+          required
+          {...register('legal_status')}
+          error={errors.legal_status?.message}
+        >
+          {LEGAL_STATUS_CHOICES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Industry"
+          required
+          {...register('industry')}
+          error={errors.industry?.message}
+        >
+          <option value="">Select industry...</option>
+          {industryOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
         <Input
           label="Email"
           type="email"

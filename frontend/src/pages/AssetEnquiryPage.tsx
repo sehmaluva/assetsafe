@@ -9,6 +9,7 @@ import {
 } from '@/api/enquiryApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { AssetEnquiryReportPanel } from '@/components/enquiry/AssetEnquiryReportPanel';
 import { useIsStaff } from '@/hooks/useIsStaff';
 
@@ -104,22 +105,19 @@ export default function AssetEnquiryPage() {
           />
         </div>
         <div className="w-52">
-          <label className="text-xs font-medium text-slate-600">
-            Filter Parameter
-          </label>
-          <select
+          <Select
+            label="Filter Parameter"
             value={searchField}
             onChange={(e) =>
               setSearchField(e.target.value as EnquirySearchField)
             }
-            className="mt-1 h-8 w-full rounded border border-slate-300 bg-white px-2 text-sm"
           >
             {FILTER_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <Button
           type="button"
