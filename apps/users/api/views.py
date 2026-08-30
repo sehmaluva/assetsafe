@@ -21,6 +21,7 @@ from apps.common.services.tasks import send_notification
 from django.contrib.sites.shortcuts import get_current_site
 
 from apps.users.api.authentication import CookieJWTAuthentication
+from apps.users.api.throttles import LoginRateThrottle
 from apps.users.api.serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer,
@@ -74,6 +75,7 @@ class LoginView(APIView):
     """
 
     permission_classes = []  # Allow anyone to access login
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request, *args, **kwargs):
         try:
