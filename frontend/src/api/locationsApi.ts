@@ -98,4 +98,24 @@ export const locationsApi = {
       country_name: r.country ? String(r.country) : undefined,
     }));
   },
+
+  createSuburb: async (payload: {
+    name: string;
+    city_id: number;
+  }): Promise<SuburbOption> => {
+    const { data } = await axiosInstance.post('/common/locations/suburbs/', {
+      name: payload.name.trim(),
+      city_id: payload.city_id,
+    });
+    const r = ((data as { data?: unknown })?.data ?? data) as Record<
+      string,
+      unknown
+    >;
+    return {
+      id: Number(r.id),
+      name: String(r.name ?? payload.name.trim()),
+      city_id: payload.city_id,
+      city_name: r.city ? String(r.city) : undefined,
+    };
+  },
 };

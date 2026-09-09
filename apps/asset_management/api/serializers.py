@@ -160,6 +160,17 @@ class LandDetailsSerializer(serializers.ModelSerializer):
         )
         if isinstance(stand_number, str):
             attrs["stand_number"] = stand_number.strip()
+
+        if "stand_address" in attrs or not self.instance:
+            stand_address = attrs.get("stand_address", "")
+            if isinstance(stand_address, str):
+                stand_address = stand_address.strip()
+                attrs["stand_address"] = stand_address
+            if not stand_address:
+                raise serializers.ValidationError(
+                    {"stand_address": "Stand Address is required."}
+                )
+
         return attrs
 
 
@@ -625,6 +636,7 @@ class AssetRegistrationSerializer(serializers.ModelSerializer):
         city = land_data.get("city")
         suburb = land_data.get("suburb")
         stand_number = (land_data.get("stand_number") or "").strip()
+        stand_address = (land_data.get("stand_address") or "").strip()
         if not (city and suburb and stand_number):
             return
         qs = LandDetails.objects.filter(
@@ -638,6 +650,21 @@ class AssetRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"land.stand_number": "This stand is already registered for this area."}
             )
+        if stand_address:
+            addr_qs = LandDetails.objects.filter(
+                suburb=suburb,
+                stand_address__iexact=stand_address,
+            )
+            if instance_pk:
+                addr_qs = addr_qs.exclude(asset_id=instance_pk)
+            if addr_qs.exists():
+                raise serializers.ValidationError(
+                    {
+                        "land.stand_address": (
+                            "This address is already registered for this suburb."
+                        )
+                    }
+                )
 
     def validate(self, attrs: dict) -> dict:
         attrs = self._validate_owner(attrs)

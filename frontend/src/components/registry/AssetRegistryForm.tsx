@@ -103,6 +103,13 @@ const schema = z
           path: ['suburb_id'],
         });
       }
+      if (!data.stand_address?.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Stand address is required',
+          path: ['stand_address'],
+        });
+      }
       if (!data.stand_number?.trim()) {
         ctx.addIssue({
           code: 'custom',
@@ -702,7 +709,12 @@ export function AssetRegistryForm({
                   />
                 )}
               />
-              <Input label="Stand Address" {...register('stand_address')} />
+              <Input
+                label="Stand Address"
+                {...register('stand_address')}
+                error={errors.stand_address?.message}
+                required
+              />
               <Input
                 label="Stand Number"
                 {...register('stand_number')}

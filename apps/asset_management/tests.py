@@ -90,6 +90,7 @@ class TypedAssetRegistryTestCase(TestCase):
             asset=asset,
             city=self.city,
             suburb=self.suburb,
+            stand_address=f"Address {stand_number}",
             stand_number=stand_number,
             stand_size="1200",
             valuation_type="estimated_value",
@@ -138,11 +139,63 @@ class TypedAssetRegistryTestCase(TestCase):
                 asset=asset2,
                 city=self.city,
                 suburb=self.suburb,
+                stand_address="Address 9999",
                 stand_number="1145",
                 stand_size="900",
                 valuation_type="estimated_value",
                 title_status="deeds",
             )
+
+    def test_land_address_suburb_uniqueness(self):
+        self._create_land_asset("1145")
+        asset2 = AssetRegistration.objects.create(
+            owner_type="individual",
+            individual_owner=self.owner,
+            asset_category=BaseAssetType.LAND,
+            asset_type="Stand",
+            estimated_value=Decimal("10000"),
+            currency=self.currency,
+            location_address="",
+            **self.dates,
+        )
+        with self.assertRaises(Exception):
+            LandDetails.objects.create(
+                asset=asset2,
+                city=self.city,
+                suburb=self.suburb,
+                stand_address="Address 1145",
+                stand_number="9999",
+                stand_size="900",
+                valuation_type="estimated_value",
+                title_status="deeds",
+            )
+
+    def test_land_different_address_same_suburb_allowed(self):
+        self._create_land_asset("1145")
+        asset2 = AssetRegistration.objects.create(
+            owner_type="individual",
+            individual_owner=self.owner,
+            asset_category=BaseAssetType.LAND,
+            asset_type="Stand",
+            estimated_value=Decimal("10000"),
+            currency=self.currency,
+            location_address="",
+            **self.dates,
+        )
+        LandDetails.objects.create(
+            asset=asset2,
+            city=self.city,
+            suburb=self.suburb,
+            stand_address="Address Other",
+            stand_number="9999",
+            stand_size="900",
+            valuation_type="estimated_value",
+            title_status="deeds",
+        )
+        self.assertEqual(
+            LandDetails.objects.filter(suburb=self.suburb).count(),
+            2,
+        )
 
     def test_sale_transition_keeps_owner(self):
         asset = self._create_land_asset()
@@ -303,6 +356,60 @@ class TypedAssetRegistryAPITest(APITestCase):
         data = response.json().get("data") or response.json()
         self.assertEqual(data["asset_category"], "land")
         self.assertEqual(data["land"]["stand_number"], "290")
+
+    def test_create_land_requires_stand_address(self):
+        today = date.today()
+        payload = {
+            "owner_type": "individual",
+            "individual_owner": self.owner.pk,
+            "company_owner": None,
+            "asset_category": "land",
+            "asset_type": "Stand",
+            "currency": "USD",
+            "estimated_value": "25000.00",
+            "subscription_start_date": today.isoformat(),
+            "subscription_end_date": (today + timedelta(days=365)).isoformat(),
+            "land": {
+                "suburb": self.suburb.pk,
+                "stand_address": "",
+                "stand_number": "291",
+                "stand_size": "2500",
+                "valuation_type": "estimated_value",
+                "title_status": "deeds",
+            },
+        }
+        response = self.client.post("/api/asset-management/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_land_rejects_duplicate_address_suburb(self):
+        today = date.today()
+        payload = {
+            "owner_type": "individual",
+            "individual_owner": self.owner.pk,
+            "company_owner": None,
+            "asset_category": "land",
+            "asset_type": "Stand",
+            "currency": "USD",
+            "estimated_value": "25000.00",
+            "subscription_start_date": today.isoformat(),
+            "subscription_end_date": (today + timedelta(days=365)).isoformat(),
+            "land": {
+                "suburb": self.suburb.pk,
+                "stand_address": "plot 1",
+                "stand_number": "291",
+                "stand_size": "2500",
+                "valuation_type": "estimated_value",
+                "title_status": "deeds",
+            },
+        }
+        response = self.client.post("/api/asset-management/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        body = response.json()
+        payload_body = body.get("data") or body
+        self.assertIn(
+            "already registered for this suburb",
+            str(payload_body).lower(),
+        )
 
     def test_ownership_change_rejects_same_owner_via_api(self):
         response = self.client.post(

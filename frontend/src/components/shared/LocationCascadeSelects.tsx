@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { locationsApi } from '@/api/locationsApi';
 import type {
   CityOption,
@@ -36,6 +36,11 @@ interface ComboboxProps<T extends { id: number; name: string }> {
   onSelect: (item: T | null) => void;
   error?: string;
   isLoading?: boolean;
+  /** When set, offer creating a new value if the query has no exact match. */
+  onCreate?: (name: string) => void | Promise<void>;
+  createEnabled?: boolean;
+  createDisabledHint?: string;
+  isCreating?: boolean;
 }
 
 function Combobox<T extends { id: number; name: string }>({
@@ -47,6 +52,10 @@ function Combobox<T extends { id: number; name: string }>({
   onSelect,
   error,
   isLoading,
+  onCreate,
+  createEnabled = false,
+  createDisabledHint,
+  isCreating = false,
 }: ComboboxProps<T>) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -65,11 +74,17 @@ function Combobox<T extends { id: number; name: string }>({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const filtered = query.trim()
+  const trimmed = query.trim();
+  const filtered = trimmed
     ? options.filter((o) =>
-        o.name.toLowerCase().includes(query.toLowerCase().trim()),
+        o.name.toLowerCase().includes(trimmed.toLowerCase()),
       )
     : options;
+  const exactMatch = trimmed
+    ? options.find((o) => o.name.toLowerCase() === trimmed.toLowerCase())
+    : undefined;
+  const showCreate =
+    Boolean(onCreate) && Boolean(trimmed) && !exactMatch && !isLoading;
 
   return (
     <div ref={ref} className={formFieldWrapperClassName}>
@@ -95,27 +110,50 @@ function Combobox<T extends { id: number; name: string }>({
         />
         {open && (
           <div className="absolute left-0 top-full z-[70] mt-1 max-h-52 w-full overflow-auto rounded border border-slate-300 bg-white shadow-md">
-          {isLoading ? (
-            <p className="px-3 py-2 text-sm text-slate-400">Loading...</p>
-          ) : filtered.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-400">No results</p>
-          ) : (
-            filtered.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onSelect(item);
-                  setOpen(false);
-                }}
-              >
-                {item.name}
-              </button>
-            ))
-          )}
-        </div>
+            {isLoading ? (
+              <p className="px-3 py-2 text-sm text-slate-400">Loading...</p>
+            ) : (
+              <>
+                {filtered.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-100"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onSelect(item);
+                      setOpen(false);
+                    }}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+                {showCreate && createEnabled && (
+                  <button
+                    type="button"
+                    className="block w-full border-t border-slate-200 px-3 py-2 text-left text-sm font-medium text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+                    disabled={isCreating}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      void Promise.resolve(onCreate?.(trimmed)).then(() =>
+                        setOpen(false),
+                      );
+                    }}
+                  >
+                    {isCreating ? 'Creating…' : `Create “${trimmed}”`}
+                  </button>
+                )}
+                {showCreate && !createEnabled && (
+                  <p className="border-t border-slate-200 px-3 py-2 text-sm text-slate-400">
+                    {createDisabledHint ?? 'Select a city first to create'}
+                  </p>
+                )}
+                {filtered.length === 0 && !showCreate && (
+                  <p className="px-3 py-2 text-sm text-slate-400">No results</p>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
       <FieldError message={error} />
@@ -141,6 +179,7 @@ export function LocationCascadeSelects({
   cityLabel: cityLabelProp,
   suburbRequired = true,
 }: Props) {
+  const queryClient = useQueryClient();
   const isStand = variant === 'stand';
   const suburbLabel =
     suburbLabelProp ?? (isStand ? 'Suburb/Area/Development' : 'Suburb');
@@ -148,6 +187,8 @@ export function LocationCascadeSelects({
   const [country, setCountry] = useState<CountryOption | null>(null);
   const [city, setCity] = useState<CityOption | null>(null);
   const [suburb, setSuburb] = useState<SuburbOption | null>(null);
+  const [creatingSuburb, setCreatingSuburb] = useState(false);
+  const [createError, setCreateError] = useState<string | undefined>();
 
   // ── base data — loaded once on mount, cached forever ─────────────────────
   //
@@ -352,6 +393,7 @@ export function LocationCascadeSelects({
   };
 
   const handleSuburbSelect = (item: SuburbOption | null) => {
+    setCreateError(undefined);
     setSuburb(item);
     onChange(item?.id ?? 0);
     if (!item) {
@@ -360,6 +402,48 @@ export function LocationCascadeSelects({
       setCountry(null);
     }
     // When item is set, city & country fill reactively via the useEffects above
+  };
+
+  const handleCreateSuburb = async (name: string) => {
+    if (!city) return;
+    const existing = suburbOptions.find(
+      (s) => s.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (existing) {
+      handleSuburbSelect(existing);
+      return;
+    }
+    setCreatingSuburb(true);
+    setCreateError(undefined);
+    try {
+      const created = await locationsApi.createSuburb({
+        name,
+        city_id: city.id,
+      });
+      const enriched: SuburbOption = {
+        ...created,
+        city_id: city.id,
+        city_name: city.name,
+        country_name: country?.name ?? created.country_name,
+      };
+      await queryClient.invalidateQueries({ queryKey: ['loc-suburbs'] });
+      await queryClient.invalidateQueries({ queryKey: ['loc-suburbs-view'] });
+      queryClient.setQueryData<SuburbOption[]>(
+        ['loc-suburbs', city.id],
+        (prev = []) =>
+          prev.some((s) => s.id === enriched.id) ? prev : [...prev, enriched],
+      );
+      queryClient.setQueryData<SuburbOption[]>(
+        ['loc-suburbs-view'],
+        (prev = []) =>
+          prev.some((s) => s.id === enriched.id) ? prev : [...prev, enriched],
+      );
+      handleSuburbSelect(enriched);
+    } catch {
+      setCreateError('Could not create suburb. Try again.');
+    } finally {
+      setCreatingSuburb(false);
+    }
   };
 
   const cityField = (
@@ -382,8 +466,12 @@ export function LocationCascadeSelects({
       options={suburbOptions}
       selected={suburb}
       onSelect={handleSuburbSelect}
-      error={error}
+      error={createError ?? error}
       isLoading={city ? loadingSuburbsForCity : loadingSuburbs}
+      onCreate={handleCreateSuburb}
+      createEnabled={Boolean(city)}
+      createDisabledHint="Select a city first to add a new suburb"
+      isCreating={creatingSuburb}
     />
   );
 

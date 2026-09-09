@@ -356,7 +356,6 @@ class LandDetails(BaseModelWithUser):
     )
     stand_address = models.CharField(
         max_length=255,
-        blank=True,
         verbose_name=_("Stand Address"),
     )
     stand_number = models.CharField(
@@ -395,6 +394,11 @@ class LandDetails(BaseModelWithUser):
                 models.F("suburb"),
                 Lower("stand_number"),
                 name="ar_uq_land_city_suburb_stand_ci",
+            ),
+            models.UniqueConstraint(
+                models.F("suburb"),
+                Lower("stand_address"),
+                name="ar_uq_land_suburb_address_ci",
             ),
         ]
 
